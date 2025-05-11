@@ -23,8 +23,11 @@
       "edgeToEdgeEnabled": true,
       "permissions": [
         "CAMERA",
+        "RECORD_AUDIO",
+        "CAMERA",
         "RECORD_AUDIO"
-      ]
+      ],
+      "package": "com.anonymous.TherapyApp"
     },
     "web": {
       "bundler": "metro",
