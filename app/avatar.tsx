@@ -42,7 +42,7 @@ export default function AvatarScreen() {
 
   const handleSelect = (name: string, imageId: string) => {
     router.push({
-      pathname: 'therapist_profile',
+      pathname: '/therapist_profile',
       params: { name, imageId },
     });
   };
