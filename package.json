@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
+    "@react-native-async-storage/async-storage": "2.1.2",
+    "@react-native-community/datetimepicker": "^8.3.0",
     "@react-navigation/bottom-tabs": "^7.3.10",
     "@react-navigation/elements": "^2.3.8",
     "@react-navigation/native": "^7.1.8",
@@ -27,6 +29,7 @@
     "expo-image": "~2.1.6",
     "expo-linear-gradient": "~14.1.4",
     "expo-linking": "~7.1.4",
+    "expo-notifications": "~0.31.1",
     "expo-router": "~5.0.5",
     "expo-screen-orientation": "~8.1.5",
     "expo-splash-screen": "~0.30.8",
@@ -36,6 +39,7 @@
     "expo-video": "~2.1.8",
     "expo-web-browser": "~14.1.6",
     "lodash": "^4.17.21",
+    "moment": "^2.30.1",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-native": "0.79.2",
@@ -44,6 +48,7 @@
     "react-native-gesture-handler": "~2.24.0",
     "react-native-keyboard-aware-scroll-view": "^0.9.5",
     "react-native-modal": "^14.0.0-rc.1",
+    "react-native-modal-datetime-picker": "^18.0.0",
     "react-native-pager-view": "6.7.1",
     "react-native-reanimated": "~3.17.4",
     "react-native-safe-area-context": "5.4.0",
@@ -52,9 +57,7 @@
     "react-native-vector-icons": "^10.2.0",
     "react-native-video": "^6.13.0",
     "react-native-web": "~0.20.0",
-    "react-native-webview": "13.13.5",
-    "@react-native-async-storage/async-storage": "2.1.2",
-    "expo-notifications": "~0.31.1"
+    "react-native-webview": "13.13.5"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

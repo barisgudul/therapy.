@@ -39,10 +39,11 @@ export default function TherapistProfile() {
 
         <TouchableOpacity
           style={styles.button}
-          onPress={() => router.push({ pathname: '/sessions/video_session', params: { name, imageId } })}
+          onPress={() => router.push('/therapy_options')}
         >
-          <Text style={styles.buttonText}>Görüntülü Terapiye Başla</Text>
+          <Text style={styles.buttonText}>Terapi Seçenekleri</Text>
         </TouchableOpacity>
+
       </ScrollView>
     </LinearGradient>
   );
