@@ -17,13 +17,7 @@ import {
 import * as Animatable from 'react-native-animatable';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { Colors } from '../constants/Colors';
-
-// MOCK API: Gerçek API gelince değiştir
-async function generatePersonalizedResponse(note: string, mood: string): Promise<string> {
-  return new Promise(resolve =>
-    setTimeout(() => resolve(`Bugünkü ruh halin "${mood}" olarak kaydedildi. Yorumun: "${note}"`), 1200)
-  );
-}
+import { generateDailyReflectionResponse } from '../hooks/useGemini'; // <-- Buraya dikkat!
 
 const moods = ['😊', '😔', '😡', '😟', '😍', '😴', '😐', '🤯'];
 const moodLabels: Record<string, string> = {
@@ -114,13 +108,13 @@ export default function DailyWriteScreen() {
 
     const now = Date.now();
     const today = new Date(now).toISOString().split('T')[0];
-    let initialMsg = `Kaydediliyor...`;
+    setAiMessage('AI analiz ediyor...');
 
-    setAiMessage(initialMsg);
     setFeedbackVisible(true);
 
-    // Async işlemleri başlat
-    generatePersonalizedResponse(note, selectedMood).then(async (personalized) => {
+    // **GEMINI API ÇAĞRISI BURADA**
+    try {
+      const personalized = await generateDailyReflectionResponse(note, selectedMood);
       setAiMessage(personalized);
 
       await AsyncStorage.multiSet([
@@ -138,13 +132,11 @@ export default function DailyWriteScreen() {
       const newEntry = { type: 'daily_write', time: now };
       await appendActivity(activityKey, newEntry);
 
-      // Test için: hemen kayıttan sonra oku ve logla!
-      const check = await AsyncStorage.getItem(activityKey);
-      console.log('Günlük activity:', activityKey, check);
-
       setRefresh(Date.now());
-      setSaving(false);
-    });
+    } catch (err) {
+      setAiMessage('Sunucu hatası, lütfen tekrar deneyin.');
+    }
+    setSaving(false);
   };
 
   const closeFeedback = () => {

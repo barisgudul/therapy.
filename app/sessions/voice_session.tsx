@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -15,6 +14,7 @@ import {
   useColorScheme,
 } from 'react-native';
 import { Colors } from '../../constants/Colors';
+import { saveToSessionData } from '../../storage/sessionData'; // EKLENDİ
 
 export default function VoiceSessionScreen() {
   const router = useRouter();
@@ -134,26 +134,16 @@ export default function VoiceSessionScreen() {
   };
 
   const handleExit = async () => {
-  await stopRecording();
+    await stopRecording();
 
-  // --- BURADAN BAŞLIYOR ---
-  const today = new Date().toISOString().split('T')[0];
-  const activityKey = `activity-${today}`;
-  let prev = [];
-  try {
-    const prevRaw = await AsyncStorage.getItem(activityKey);
-    if (prevRaw) prev = JSON.parse(prevRaw);
-  } catch {
-    prev = [];
-  }
-  const newEntry = { type: 'voice_session', time: Date.now() };
-  await AsyncStorage.setItem(activityKey, JSON.stringify([...prev, newEntry]));
-  // --- BURADA BİTİYOR ---
+    // --- MERKEZİ KAYIT FONKSİYONU ---
+    await saveToSessionData({
+      sessionType: "voice",
+      newMessages: [], // İleride transcript eklersen burada kullanırsın
+    });
 
-  router.back();
-};
-
-
+    router.back();
+  };
 
   return (
     <LinearGradient colors={isDark ? ['#000000', '#1c2e40'] : ['#F9FAFB', '#ECEFF4']} style={styles.container}>
@@ -180,7 +170,7 @@ export default function VoiceSessionScreen() {
             ]}
           />
 
-          <Text style={[styles.volume, { color: isDark ? '#fff' : Colors.light.tint}]}>
+          <Text style={[styles.volume, { color: isDark ? '#fff' : Colors.light.tint }]}>
             🎙️ Mikrofon Seviyesi: {volume.toFixed(1)} dB
           </Text>
 
@@ -205,7 +195,6 @@ export default function VoiceSessionScreen() {
     </LinearGradient>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: {

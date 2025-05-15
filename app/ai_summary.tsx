@@ -3,9 +3,11 @@ import { Slider } from '@miblanchard/react-native-slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   Platform,
@@ -13,10 +15,13 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
+// @ts-ignore
+import RNHTMLtoPDF from 'react-native-html-to-pdf';
+
 import { Colors } from '../constants/Colors';
-import { generatePersonalizedResponse } from '../hooks/useGemini';
+import { generateDetailedMoodSummary } from '../hooks/useGemini';
 
 export default function AISummaryScreen() {
   const router = useRouter();
@@ -31,8 +36,8 @@ export default function AISummaryScreen() {
   useEffect(() => {
     (async () => {
       const keys = await AsyncStorage.getAllKeys();
-      const moods = keys.filter(k => k.startsWith('activity_'));
-      const capped = Math.min(moods.length, 30);
+      const sessionKeys = keys.filter(k => k.startsWith('session-'));
+      const capped = Math.min(sessionKeys.length, 30);
       setMaxDays(capped || 1);
       setSelectedDays(capped || 1);
     })();
@@ -41,29 +46,73 @@ export default function AISummaryScreen() {
   const fetchSummary = async () => {
     if (loading) return;
     setLoading(true);
-    const now = new Date();
+
+    // Bütün anahtarları al
+    const keys = await AsyncStorage.getAllKeys();
+
+    // Sadece session- ile başlayanları bul ve tarihe göre yeni > eski sırala
+    const sessionKeys = keys
+      .filter(k => k.startsWith('session-'))
+      .sort((a, b) => b.localeCompare(a)); // Yeni tarihler başta
+
+    // Seçili gün kadar en güncel kayıtları al
+    const selectedSessionKeys = sessionKeys.slice(0, selectedDays);
+
     const entries: any[] = [];
-    for (let i = 0; i < selectedDays; i++) {
-      const d = new Date(now);
-      d.setDate(now.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
-      const moodData = await AsyncStorage.getItem(`mood-${dateStr}`);
-      const sessionData = await AsyncStorage.getItem(`session-${dateStr}`); // Eğer session verisi varsa
-
-      if (moodData) {
-        entries.push(JSON.parse(moodData));
-      } else if (sessionData) {
-        entries.push(JSON.parse(sessionData));
-      } else {
-        entries.push({ date: dateStr, activity: 'Günlük veya seans yapıldı, detay girilmedi.' });
+    for (const key of selectedSessionKeys) {
+      const val = await AsyncStorage.getItem(key);
+      if (val) {
+        entries.push({ date: key.replace('session-', ''), ...JSON.parse(val) });
       }
-}
+    }
 
+    if (entries.length === 0) {
+      setSummaries(prev => ["Hiç veri bulunamadı.", ...prev]);
+      setLoading(false);
+      return;
+    }
 
-    const prompt = `Son ${selectedDays} gün içinde kullanıcı şu verileri girdi: ${JSON.stringify(entries)}. Bu verileri analiz ederek kullanıcıya duygusal durumuyla ilgili kısa, empatik bir analiz çıkar.`;
-    const result = await generatePersonalizedResponse(prompt, '');
-    setSummaries(prev => [result.trim(), ...prev]);
+    try {
+      const result = await generateDetailedMoodSummary(entries, selectedDays);
+      setSummaries(prev => [result.trim(), ...prev]);
+    } catch (e) {
+      setSummaries(prev => ["AI özet üretilemedi, lütfen tekrar deneyin.", ...prev]);
+    }
     setLoading(false);
+  };
+
+  // PDF OLUŞTURMA ve PAYLAŞIM
+  const exportToPDF = async () => {
+    if (!activeSummary) return;
+    const htmlContent = `
+      <div style="padding:32px 18px;font-family:Helvetica,Arial,sans-serif">
+        <h2 style="color:#4988e5;text-align:center;margin-bottom:16px;">therapy<span style="color:#5DA1D9;">.</span> - AI Ruh Hâli Analizi</h2>
+        <div style="height:2px;width:100%;background:#e3e8f0;margin:12px 0 22px 0;border-radius:2px"></div>
+        <div style="font-size:15px;line-height:1.7;color:#222;text-align:center">
+          ${activeSummary.replace(/\n/g, "<br/>")}
+        </div>
+        <div style="margin-top:32px;color:#9ca3af;font-size:12px;text-align:center">
+          Bu PDF, therapy. uygulamasının AI analiz özelliği ile otomatik oluşturulmuştur.
+        </div>
+      </div>
+    `;
+    try {
+      const options = {
+        html: htmlContent,
+        fileName: 'therapy_ai_analiz',
+        directory: 'Documents',
+      };
+      const file = await RNHTMLtoPDF.convert(options);
+      if (file.filePath) {
+        await Sharing.shareAsync(file.filePath, {
+          dialogTitle: 'PDF Analizini Paylaş',
+        });
+      } else {
+        Alert.alert('PDF oluşturulamadı!');
+      }
+    } catch (e) {
+      Alert.alert('PDF veya paylaşım başarısız.', String((e as any)?.message || e));
+    }
   };
 
   const SummaryCard = ({ text }: { text: string }) => (
@@ -137,16 +186,98 @@ export default function AISummaryScreen() {
         )}
       </ScrollView>
 
+      {/* --- Ultra Zarif Modal --- */}
       <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Ionicons name="document-text-outline" size={24} color={Colors.light.tint} style={{ marginBottom: 12 }} />
-            <ScrollView style={{ maxHeight: '70%' }}>
-              <Text style={styles.modalText}>{activeSummary}</Text>
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.25)',
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}>
+          <View style={{
+            backgroundColor: '#fff',
+            borderRadius: 36,
+            paddingHorizontal: 32,
+            paddingVertical: 38,
+            alignItems: 'center',
+            width: '92%',
+            maxWidth: 420,
+            shadowColor: '#000',
+            shadowOpacity: 0.13,
+            shadowOffset: { width: 0, height: 12 },
+            shadowRadius: 32,
+            elevation: 14,
+          }}>
+            <View style={{
+              width: 74, height: 74, borderRadius: 37,
+              alignItems: 'center', justifyContent: 'center',
+              marginBottom: 16,
+              backgroundColor: 'transparent',
+            }}>
+              <LinearGradient
+                colors={['#E0ECFD', '#F4E6FF']}
+                style={{ ...StyleSheet.absoluteFillObject, borderRadius: 37 }}
+              />
+              <Ionicons name="document-text-outline" size={32} color={Colors.light.tint} />
+            </View>
+            <Text style={{
+              fontSize: 20,
+              fontWeight: '700',
+              color: Colors.light.tint,
+              marginBottom: 12,
+              letterSpacing: 0.1,
+              textAlign: 'center'
+            }}>
+              AI Duygu Analizi
+            </Text>
+            <View style={{
+              width: 48,
+              height: 4,
+              borderRadius: 2,
+              backgroundColor: '#E8EDF4',
+              marginBottom: 22,
+              marginTop: -6,
+            }} />
+            <ScrollView style={{ maxHeight: 350, marginBottom: 26 }} showsVerticalScrollIndicator={false}>
+              <Text style={{
+                fontSize: 16,
+                color: '#232b38',
+                lineHeight: 24,
+                textAlign: 'center',
+                fontWeight: '400'
+              }}>
+                {activeSummary || "Analiz yüklenemedi."}
+              </Text>
             </ScrollView>
-            <TouchableOpacity style={styles.closeBtn} onPress={() => setModalVisible(false)}>
-              <Text style={styles.closeTxt}>Kapat</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 18, marginTop: 4 }}>
+              <TouchableOpacity
+                onPress={exportToPDF}
+                style={{
+                  backgroundColor: "#E3EAFD",
+                  borderRadius: 22,
+                  paddingHorizontal: 28,
+                  paddingVertical: 11,
+                  alignItems: "center",
+                  flexDirection: "row",
+                  marginRight: 6
+                }}>
+                <Ionicons name="download-outline" size={20} color={Colors.light.tint} style={{ marginRight: 6 }} />
+                <Text style={{ color: Colors.light.tint, fontWeight: "600", fontSize: 15 }}>PDF İndir & Paylaş</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setModalVisible(false)}
+                style={{
+                  backgroundColor: Colors.light.tint,
+                  borderRadius: 22,
+                  paddingHorizontal: 30,
+                  paddingVertical: 12,
+                  alignItems: "center",
+                  flexDirection: "row"
+                }}>
+                <Ionicons name="close" size={20} color="#fff" style={{ marginRight: 6 }} />
+                <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>Kapat</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -310,40 +441,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#9CA3AF',
     textAlign: 'center',
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  modalCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 32,
-    padding: 30,
-    width: '100%',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 16,
-    elevation: Platform.OS === 'android' ? 6 : 0,
-  },
-  modalText: {
-    fontSize: 15,
-    color: '#1F2937',
-    lineHeight: 22,
-  },
-  closeBtn: {
-    marginTop: 26,
-    backgroundColor: Colors.light.tint,
-    borderRadius: 28,
-    paddingVertical: 12,
-    paddingHorizontal: 46,
-  },
-  closeTxt: {
-    color: '#fff',
-    fontWeight: '600',
   },
 });

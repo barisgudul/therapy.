@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Colors } from '../constants/Colors';
 
 export default function TherapyOptionsScreen() {
   const router = useRouter();
+  const { therapistId } = useLocalSearchParams<{ therapistId: string }>();
 
   return (
     <LinearGradient colors={['#F9FAFB', '#ECEFF4']} style={styles.container}>
@@ -22,7 +23,13 @@ export default function TherapyOptionsScreen() {
       <Text style={styles.subtitle}>İhtiyacına en uygun terapi yöntemini belirleyerek yolculuğuna başla.</Text>
 
       <View style={styles.cardContainer}>
-        <TouchableOpacity style={styles.card} onPress={() => router.push('./sessions/text_session')}>
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => router.push({
+            pathname: './sessions/text_session',
+            params: { therapistId }
+          })}
+        >
           <Ionicons name="chatbubble-ellipses-outline" size={28} color={Colors.light.tint} />
           <View style={styles.textBlock}>
             <Text style={styles.cardTitle}>Yazışma Terapisi</Text>
@@ -30,7 +37,13 @@ export default function TherapyOptionsScreen() {
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.card} onPress={() => router.push('./sessions/voice_session')}>
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => router.push({
+            pathname: './sessions/voice_session',
+            params: { therapistId }
+          })}
+        >
           <Ionicons name="mic-outline" size={28} color={Colors.light.tint} />
           <View style={styles.textBlock}>
             <Text style={styles.cardTitle}>Sesli Terapi</Text>
@@ -38,7 +51,13 @@ export default function TherapyOptionsScreen() {
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.card} onPress={() => router.push('./sessions/video_session')}>
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => router.push({
+            pathname: './sessions/video_session',
+            params: { therapistId }
+          })}
+        >
           <Ionicons name="videocam-outline" size={28} color={Colors.light.tint} />
           <View style={styles.textBlock}>
             <Text style={styles.cardTitle}>Görüntülü Terapi</Text>

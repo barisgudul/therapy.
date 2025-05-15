@@ -1,12 +1,13 @@
-// app/text_session.tsx
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  BackHandler,
+  FlatList,
   Keyboard,
+  KeyboardAvoidingView,
   Platform,
   StyleSheet,
   Text,
@@ -15,18 +16,30 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
+import { generateTherapistReply } from '../../hooks/useGemini';
+
+// --- EKLENDİ: Merkezi session kaydetme fonksiyonu --- //
+import { saveToSessionData } from '../../storage/sessionData';
+
+// --- DEBUG IMPORT: Gerçekten var mı kontrolü --- //
+import * as sessionData from '../../storage/sessionData';
+console.log('DEBUG sessionData:', sessionData);
+console.log('DEBUG saveToSessionData:', saveToSessionData);
 
 export default function TextSessionScreen() {
   const router = useRouter();
-  const scrollRef = useRef<KeyboardAwareScrollView>(null);
-  const [messages, setMessages] = useState<string[]>([]);
+  const flatListRef = useRef<FlatList>(null);
+  const inputRef = useRef<TextInput>(null);
+
+  const { therapistId } = useLocalSearchParams<{ therapistId: string }>();
+
+  const [messages, setMessages] = useState<{ sender: 'user' | 'ai', text: string }[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
-  // Dot animation (typing indicator)
+  // Typing animation state
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
   const dot3 = useRef(new Animated.Value(0)).current;
@@ -52,146 +65,195 @@ export default function TextSessionScreen() {
 
   useEffect(() => {
     setTimeout(() => {
-      setMessages(['AI: Merhaba, ben buradayım. Hazır olduğunda seninle konuşmaya hazırım.']);
-    }, 1000);
+      setMessages([
+        { sender: 'ai', text: "Merhaba, ben buradayım. Hazır olduğunda seninle konuşmaya hazırım." }
+      ]);
+    }, 500);
   }, []);
 
   useEffect(() => {
     if (isTyping) animateDots();
   }, [isTyping]);
 
-  // Aktiviteleri kaydeden fonksiyon (dizi tipini kontrol ederek)
-  const saveActivity = async () => {
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const activityKey = `activity-${today}`;
-      let prev = [];
-      const prevRaw = await AsyncStorage.getItem(activityKey);
-      if (prevRaw) {
-        try {
-          const parsed = JSON.parse(prevRaw);
-          prev = Array.isArray(parsed) ? parsed : [];
-        } catch {
-          prev = [];
-        }
-      }
-      const newEntry = { type: 'text_session', time: Date.now() };
-      await AsyncStorage.setItem(activityKey, JSON.stringify([...prev, newEntry]));
-    } catch (e) {
-      // Hata olursa uygulama çökmesin, AI cevabı yine gelsin
-      console.warn('Aktivite kaydedilemedi:', e);
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
     }
+  }, [messages, isTyping]);
+
+  const handleFocus = () => {
+    setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }, 300);
   };
+
+  // --- Geri tuşuna basınca ve ekrandan çıkarken sohbeti kaydet (merkezi olarak) --- //
+  // ! Doğru kullanım için: aboneyi kaydet ve .remove() ile temizle !
+  const latestMessages = useRef(messages);
+  latestMessages.current = messages;
+
+  useEffect(() => {
+    const saveSession = async () => {
+      if (latestMessages.current.length > 0 && typeof saveToSessionData === "function") {
+        await saveToSessionData({
+          sessionType: "text",
+          newMessages: latestMessages.current,
+        });
+      } else {
+        console.error("saveToSessionData fonksiyonu YOK veya geçersiz!");
+      }
+    };
+
+    const onBackPress = () => {
+      saveSession();
+      return false;
+    };
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+
+    return () => {
+      saveSession();
+      subscription.remove(); // <-- Doğru kullanım!
+    };
+    // useRef sayesinde messages'ın en güncel halini kullanır.
+  }, []);
 
   const sendMessage = async () => {
     const trimmed = input.trim();
-    if (!trimmed) return;
+    if (!trimmed || isTyping) return;
 
-    setMessages((prev) => [...prev, trimmed]);
+    setMessages(prev => [...prev, { sender: 'user', text: trimmed }]);
     setInput('');
     setIsTyping(true);
 
-    // Aktiviteyi kaydet (hata olsa da devam et)
-    saveActivity();
-
-    // AI cevabını gecikmeli göster
-    setTimeout(() => {
-      setIsTyping(false);
-      setMessages((prev) => [
+    try {
+      const aiReply = await generateTherapistReply(
+        therapistId ?? "therapist1",
+        trimmed,
+        ""
+      );
+      setMessages(prev => [
         ...prev,
-        'AI: Anladım. O zaman ne hakkında konuşmak istersin?',
+        { sender: 'ai', text: aiReply }
       ]);
-      scrollRef.current?.scrollToEnd(true);
-    }, 1200);
+    } catch (err) {
+      setMessages(prev => [
+        ...prev,
+        { sender: 'ai', text: "Şu anda bir sorun oluştu, lütfen tekrar dene." }
+      ]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
 
-    setTimeout(() => scrollRef.current?.scrollToEnd(true), 100);
+  const handleBack = () => {
+    if (messages.length > 0 && typeof saveToSessionData === "function") {
+      saveToSessionData({
+        sessionType: "text",
+        newMessages: messages,
+      }).finally(() => {
+        router.back();
+      });
+    } else {
+      router.back();
+    }
   };
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <LinearGradient colors={['#F9FAFB', '#ECEFF4']} style={styles.container}>
-          {/* HEADER */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.back}>
-              <Ionicons name="chevron-back" size={26} color={Colors.light.tint} />
-            </TouchableOpacity>
-            <Text style={styles.logo}>
-              therapy<Text style={styles.dot}>.</Text>
-            </Text>
-          </View>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <LinearGradient colors={['#F9FAFB', '#ECEFF4']} style={styles.container}>
+            {/* HEADER */}
+            <View style={styles.header}>
+              <TouchableOpacity onPress={handleBack} style={styles.back}>
+                <Ionicons name="chevron-back" size={26} color={Colors.light.tint} />
+              </TouchableOpacity>
+              <Text style={styles.logo}>
+                therapy<Text style={styles.dot}>.</Text>
+              </Text>
+            </View>
 
-          {/* MESSAGE THREAD */}
-          <KeyboardAwareScrollView
-            ref={scrollRef}
-            contentContainerStyle={styles.messages}
-            keyboardShouldPersistTaps="always"
-            enableOnAndroid
-            extraScrollHeight={160}
-            extraHeight={Platform.OS === 'android' ? 160 : 100}
-            showsVerticalScrollIndicator={false}
-            enableAutomaticScroll
-          >
-            {messages.map((msg, index) => {
-              const isAI = msg.startsWith('AI:');
-              const cleanMsg = isAI ? msg.replace('AI: ', '') : msg;
-
-              return (
-                <View
-                  key={index}
-                  style={[
-                    styles.bubble,
-                    isAI ? styles.aiBubble : styles.userBubble,
-                  ]}
-                >
-                  <Text style={styles.bubbleText}>{cleanMsg}</Text>
-                </View>
-              );
-            })}
-
-            {/* TYPING INDICATOR */}
-            {isTyping && (
-              <View style={[styles.bubble, styles.aiBubble, { flexDirection: 'row', gap: 6 }]}>
-                {[dot1, dot2, dot3].map((dot, i) => (
-                  <Animated.Text
-                    key={i}
+            {/* MESSAGES */}
+            <FlatList
+              ref={flatListRef}
+              data={isTyping ? [...messages, { sender: 'ai', text: '...' }] : messages}
+              keyExtractor={(_, i) => i.toString()}
+              renderItem={({ item, index }) => {
+                if (item.text === '...') {
+                  return (
+                    <View style={[styles.bubble, styles.aiBubble, { flexDirection: 'row', gap: 6 }]}>
+                      {[dot1, dot2, dot3].map((dot, i) => (
+                        <Animated.Text
+                          key={i}
+                          style={[
+                            styles.bubbleText,
+                            {
+                              opacity: dot,
+                              transform: [
+                                {
+                                  scale: dot.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: [0.7, 1.2],
+                                  }),
+                                },
+                              ],
+                            },
+                          ]}
+                        >
+                          ●
+                        </Animated.Text>
+                      ))}
+                    </View>
+                  );
+                }
+                const isAI = item.sender === 'ai';
+                return (
+                  <View
+                    key={index}
                     style={[
-                      styles.bubbleText,
-                      {
-                        opacity: dot,
-                        transform: [
-                          {
-                            scale: dot.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0.7, 1.2],
-                            }),
-                          },
-                        ],
-                      },
+                      styles.bubble,
+                      isAI ? styles.aiBubble : styles.userBubble,
                     ]}
                   >
-                    ●
-                  </Animated.Text>
-                ))}
-              </View>
-            )}
+                    <Text style={styles.bubbleText}>{item.text}</Text>
+                  </View>
+                );
+              }}
+              contentContainerStyle={styles.messages}
+              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            />
 
             {/* INPUT FIELD */}
             <View style={styles.inputBar}>
               <TextInput
+                ref={inputRef}
                 style={styles.input}
                 placeholder="Mesajınızı yazın..."
                 value={input}
                 onChangeText={setInput}
                 multiline
+                editable={!isTyping}
+                onFocus={handleFocus}
+                onSubmitEditing={sendMessage}
+                blurOnSubmit={false}
+                returnKeyType="send"
               />
-              <TouchableOpacity onPress={sendMessage} style={styles.sendButton}>
+              <TouchableOpacity onPress={sendMessage} style={styles.sendButton} disabled={isTyping || !input.trim()}>
                 <Ionicons name="send" size={20} color="#fff" />
               </TouchableOpacity>
             </View>
-          </KeyboardAwareScrollView>
-        </LinearGradient>
-      </TouchableWithoutFeedback>
+          </LinearGradient>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -254,7 +316,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     marginHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: Platform.OS === "ios" ? 32 : 16,
     borderRadius: 28,
     borderWidth: 1,
     borderColor: '#EEF2F7',
@@ -280,5 +342,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    opacity: 1,
   },
 });

@@ -20,6 +20,11 @@ const avatars = [
     imageId: 'therapist1',
     thumbnail: require('../assets/Terapist_1.jpg'),
     title: 'Klinik Psikolog',
+    persona: 'Şefkatli ve duygusal, anaç tavırlı',
+    style: 'Empati ve dinleme öncelikli, duygulara odaklanır',
+    specialty: 'Duygusal zorluklar, özşefkat, ilişki terapisi',
+    motto: '“Duygularını onurlandırmak, kendini iyileştirmenin ilk adımıdır.”',
+    about: 'Ben Dr. Elif. Duyguların keşfi ve iyileşme yolculuğunda sana şefkatle eşlik ederim. Seanslarda her duygunun güvenle ifade edilebildiği, yargısız bir alan yaratırım. Stres, özgüven ve ilişki sorunlarında destek olurum.'
   },
   {
     id: '2',
@@ -27,6 +32,11 @@ const avatars = [
     imageId: 'therapist2',
     thumbnail: require('../assets/Terapist_2.jpg'),
     title: 'Aile Terapisti',
+    persona: 'Mantıklı ve analitik, çözüm odaklı',
+    style: 'Yapıcı, net, doğrudan; bilişsel teknikler uygular',
+    specialty: 'Aile içi iletişim, ilişki yönetimi, bilişsel davranışçı terapi',
+    motto: '“Her sorunun ardında bir çözüm ve yeni bir başlangıç vardır.”',
+    about: 'Merhaba, ben Dr. Deniz. İlişkilerde denge ve anlayışı güçlendirmeye odaklanırım. Analitik yaklaşımım ile sorunun kökenini keşfeder, pratik ve uygulanabilir çözüm yolları sunarım. Özellikle aile içi iletişimde uzmanım.'
   },
   {
     id: '3',
@@ -34,8 +44,14 @@ const avatars = [
     imageId: 'therapist3',
     thumbnail: require('../assets/Terapist_3.jpg'),
     title: 'Bilişsel Davranışçı Uzmanı',
-  },
+    persona: 'Enerjik ve motive edici, genç ruhlu',
+    style: 'Cesaretlendirici, pozitif ve umut aşılayan',
+    specialty: 'Öz güven, motivasyon, yaşam hedefleri, davranış değişikliği',
+    motto: '“Bugün küçük bir adım, yarın büyük bir değişimin başlangıcıdır.”',
+    about: 'Selam! Ben Dr. Lina. Hayata pozitif bakışımla, güçlü yönlerini keşfetmen ve hedeflerine ulaşman için seni desteklerim. Seanslarımda motive edici, pratik ve genç bir enerji sunarım. Hedef belirleme ve değişim konularında yanındayım.'
+  }
 ];
+
 
 export default function AvatarScreen() {
   const router = useRouter();

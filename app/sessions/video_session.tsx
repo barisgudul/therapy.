@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-av';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -17,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import { Colors } from '../../constants/Colors';
+import { saveToSessionData } from '../../storage/sessionData'; // EKLENDİ
 
 const { width, height } = Dimensions.get('window');
 const PIP_SIZE = 100;
@@ -114,10 +114,10 @@ export default function SessionScreen() {
 
   const stopListening = async () => {
     setMicOn(false);
-  
+
     if (intervalRef.current) clearInterval(intervalRef.current);
     intervalRef.current = null;
-  
+
     if (recordingRef.current) {
       try {
         const status = await recordingRef.current.getStatusAsync();
@@ -130,7 +130,6 @@ export default function SessionScreen() {
       recordingRef.current = null;
     }
   };
-  
 
   const panResponder = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -142,6 +141,7 @@ export default function SessionScreen() {
   if (!permission) return <Text>İzin kontrol ediliyor...</Text>;
   if (!permission.granted) return <Text>Kamera izni reddedildi.</Text>;
 
+  // --- Kapatma tuşunda merkezi kayıt fonksiyonu entegre edildi ---
   return (
     <View style={styles.container}>
       <Image source={therapistImage} style={styles.therapist} resizeMode="cover" />
@@ -167,30 +167,18 @@ export default function SessionScreen() {
           <Ionicons name={micOn ? 'mic' : 'mic-off'} size={22} color="#fff" />
         </TouchableOpacity>
         <TouchableOpacity
-            onPress={async () => {
-                  await stopListening();
-
-                  // --- BURADAN BAŞLIYOR ---
-                  const today = new Date().toISOString().split('T')[0];
-                  const activityKey = `activity-${today}`;
-                  let prev = [];
-                  try {
-                    const prevRaw = await AsyncStorage.getItem(activityKey);
-                    if (prevRaw) prev = JSON.parse(prevRaw);
-                  } catch {
-                    prev = [];
-                  }
-                  const newEntry = { type: 'video_session', time: Date.now() };
-                  await AsyncStorage.setItem(activityKey, JSON.stringify([...prev, newEntry]));
-                  // --- BURADA BİTİYOR ---
-
-                  router.back();
-                }}
-            style={[styles.iconBtn, styles.btnEnd]}
-          >
-            <Ionicons name="close" size={22} color="#fff" />
-      </TouchableOpacity>
-
+          onPress={async () => {
+            await stopListening();
+            await saveToSessionData({
+              sessionType: "video",
+              newMessages: [], // İleride transcript/mesaj vs. gelirse buraya eklersin
+            });
+            router.back();
+          }}
+          style={[styles.iconBtn, styles.btnEnd]}
+        >
+          <Ionicons name="close" size={22} color="#fff" />
+        </TouchableOpacity>
       </View>
       <View style={styles.textBox}>
         <Text style={styles.text}>🎙️ Ses Seviyesi: {volume.toFixed(1)} dB</Text>
@@ -198,6 +186,7 @@ export default function SessionScreen() {
     </View>
   );
 }
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
