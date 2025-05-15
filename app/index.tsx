@@ -1,4 +1,4 @@
-// app/index.tsx  (tam dosya)
+// app/index.tsx
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
@@ -17,13 +17,34 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 import * as Animatable from 'react-native-animatable';
 import { Colors } from '../constants/Colors';
 
 const todayISO = () => new Date().toISOString().split('T')[0];
 const { width } = Dimensions.get('window');
+
+/* --------- DEBUG: Aktiviteleri Yazdır --------- */
+async function showAllActivities() {
+  const keys = await AsyncStorage.getAllKeys();
+  const activityKeys = keys.filter(k => k.startsWith('activity-'));
+  if (activityKeys.length === 0) {
+    console.log('Hiç aktivite kaydı yok!');
+    Alert.alert('Hiç aktivite kaydı yok!');
+    return;
+  }
+  for (const key of activityKeys) {
+    const value = await AsyncStorage.getItem(key);
+    try {
+      console.log(key, JSON.parse(value));
+    } catch {
+      console.log(key, value);
+    }
+  }
+  Alert.alert('Tüm aktiviteler konsola yazdırıldı!');
+}
+/* ---------------------------------------------- */
 
 /* -------- Streak dots -------- */
 function DailyStreak({ refreshKey }: { refreshKey: number }) {
@@ -105,21 +126,20 @@ export default function HomeScreen() {
 
   /* günlük kartı */
   const handleCardPress = async () => {
-  const storedDate = await AsyncStorage.getItem('todayDate');
-  if (storedDate === todayISO()) {
-    /* zaten açılmışsa: modal */
-    const msg = await AsyncStorage.getItem('todayMessage');
-    if (msg) setAiMessage(msg);
-    setModalVisible(true);
-    animateBg(true);
-  } else {
-+    /* İLK TIKLAMA → tarihi hemen kaydet */
-+    await AsyncStorage.setItem('todayDate', todayISO());
-     setAiMessage(null);
-     router.push('/daily_write');
-  }
-};
-
+    const storedDate = await AsyncStorage.getItem('todayDate');
+    if (storedDate === todayISO()) {
+      // zaten açılmışsa: modal
+      const msg = await AsyncStorage.getItem('todayMessage');
+      if (msg) setAiMessage(msg);
+      setModalVisible(true);
+      animateBg(true);
+    } else {
+      // ilk tıklama → tarihi hemen kaydet
+      await AsyncStorage.setItem('todayDate', todayISO());
+      setAiMessage(null);
+      router.push('/daily_write');
+    }
+  };
 
   /* Terapistini Seç */
   const handleStart = async () => {
@@ -159,33 +179,40 @@ export default function HomeScreen() {
         <Image source={require('../assets/therapy-illustration.png')} style={styles.image} resizeMode="contain" />
         <Text style={styles.title}>Zihnine iyi bak.</Text>
         <Text style={styles.subtitle}>Yapay zekâ destekli terapist ile birebir seans yap.</Text>
-<TouchableOpacity style={styles.buttonUnified} onPress={handleCardPress}>
-  <Ionicons name="sparkles-outline" size={22} color={Colors.light.tint} style={{ marginRight: 10 }} />
-  <Text style={styles.outlinedText}>Bugün nasıl hissediyorsun?</Text>
-</TouchableOpacity>
 
-<TouchableOpacity style={styles.buttonUnified} onPress={() => router.push('/ai_summary')}>
-  <Ionicons name="analytics-outline" size={22} color={Colors.light.tint} style={{ marginRight: 10 }} />
-  <Text style={styles.outlinedText}>AI Ruh Hâli Özeti</Text>
-</TouchableOpacity>
+        <TouchableOpacity style={styles.buttonUnified} onPress={handleCardPress}>
+          <Ionicons name="sparkles-outline" size={22} color={Colors.light.tint} style={{ marginRight: 10 }} />
+          <Text style={styles.outlinedText}>Bugün nasıl hissediyorsun?</Text>
+        </TouchableOpacity>
 
-<TouchableOpacity style={styles.buttonUnified} onPress={handleStart}>
-  <Ionicons name="people-outline" size={20} color={Colors.light.tint} style={{ marginRight: 8 }} />
-  <Text style={styles.secondaryText}>Terapistini Seç</Text>
-</TouchableOpacity>
+        <TouchableOpacity style={styles.buttonUnified} onPress={() => router.push('/ai_summary')}>
+          <Ionicons name="analytics-outline" size={22} color={Colors.light.tint} style={{ marginRight: 10 }} />
+          <Text style={styles.outlinedText}>AI Ruh Hâli Özeti</Text>
+        </TouchableOpacity>
 
-
+        <TouchableOpacity style={styles.buttonUnified} onPress={handleStart}>
+          <Ionicons name="people-outline" size={20} color={Colors.light.tint} style={{ marginRight: 8 }} />
+          <Text style={styles.secondaryText}>Terapistini Seç</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.linkButton} onPress={() => router.push('/how_it_works')}>
           <Text style={styles.linkText}>Terapiler nasıl işler?</Text>
         </TouchableOpacity>
       </Animated.View>
 
-      {/* DEMO RESET only dev */}
+      {/* DEMO RESET ve DEBUG only dev */}
       {__DEV__ && (
-        <TouchableOpacity style={styles.resetBtn} onPress={clearDemoData}>
-          <Text style={styles.resetTxt}>Demo Sıfırla</Text>
-        </TouchableOpacity>
+        <View style={{ position: 'absolute', bottom: 40, right: 24, flexDirection: 'row', gap: 12 }}>
+          <TouchableOpacity style={styles.resetBtn} onPress={clearDemoData}>
+            <Text style={styles.resetTxt}>Demo Sıfırla</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.resetBtn, { backgroundColor: '#14b8a6', marginLeft: 8 }]}
+            onPress={showAllActivities}
+          >
+            <Text style={[styles.resetTxt, { color: '#fff' }]}>Aktiviteleri Yazdır</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       {modalVisible && <BlurView intensity={60} tint="default" style={StyleSheet.absoluteFill} />}
@@ -218,26 +245,25 @@ export default function HomeScreen() {
 
 /* ---------------- styles ---------------- */
 const styles = StyleSheet.create({
-        buttonUnified: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: '#fff',
-      borderWidth: 1.4,
-      borderColor: Colors.light.tint,
-      borderRadius: 24,
-      paddingVertical: 13,
-      paddingHorizontal: 28,
-      marginBottom: 16,
-      alignSelf: 'center',
-      minWidth: 260,
-    },
-    buttonText: {
-      fontSize: 15.5,
-      color: Colors.light.tint,
-      fontWeight: '600',
-    }
-  ,
+  buttonUnified: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1.4,
+    borderColor: Colors.light.tint,
+    borderRadius: 24,
+    paddingVertical: 13,
+    paddingHorizontal: 28,
+    marginBottom: 16,
+    alignSelf: 'center',
+    minWidth: 260,
+  },
+  buttonText: {
+    fontSize: 15.5,
+    color: Colors.light.tint,
+    fontWeight: '600',
+  },
   flex: { flex: 1 },
   container: { flex: 1, paddingHorizontal: 22, paddingTop: 70 },
 
@@ -277,7 +303,15 @@ const styles = StyleSheet.create({
   dotActive: { backgroundColor: Colors.light.tint },
   dotInactive: { backgroundColor: '#fff', borderWidth: 1.2, borderColor: '#E5E7EB' },
 
-  /* demo reset */
-  resetBtn: { position: 'absolute', bottom: 40, right: 24, backgroundColor: '#e11d48', paddingVertical: 10, paddingHorizontal: 18, borderRadius: 26, ...(Platform.OS === 'ios' ? { shadowColor: '#000', shadowOpacity: 0.15, shadowOffset: { width: 0, height: 3 }, shadowRadius: 6 } : { elevation: 4 }) },
+  /* demo reset ve debug */
+  resetBtn: {
+    backgroundColor: '#e11d48',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 26,
+    ...(Platform.OS === 'ios'
+      ? { shadowColor: '#000', shadowOpacity: 0.15, shadowOffset: { width: 0, height: 3 }, shadowRadius: 6 }
+      : { elevation: 4 }),
+  },
   resetTxt: { color: '#fff', fontWeight: '600' },
 });

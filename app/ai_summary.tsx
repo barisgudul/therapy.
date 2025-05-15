@@ -5,15 +5,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Colors } from '../constants/Colors';
 import { generatePersonalizedResponse } from '../hooks/useGemini';
@@ -31,7 +31,7 @@ export default function AISummaryScreen() {
   useEffect(() => {
     (async () => {
       const keys = await AsyncStorage.getAllKeys();
-      const moods = keys.filter(k => k.startsWith('mood-'));
+      const moods = keys.filter(k => k.startsWith('activity_'));
       const capped = Math.min(moods.length, 30);
       setMaxDays(capped || 1);
       setSelectedDays(capped || 1);
@@ -46,10 +46,19 @@ export default function AISummaryScreen() {
     for (let i = 0; i < selectedDays; i++) {
       const d = new Date(now);
       d.setDate(now.getDate() - i);
-      const key = `mood-${d.toISOString().split('T')[0]}`;
-      const data = await AsyncStorage.getItem(key);
-      if (data) entries.push(JSON.parse(data));
-    }
+      const dateStr = d.toISOString().split('T')[0];
+      const moodData = await AsyncStorage.getItem(`mood-${dateStr}`);
+      const sessionData = await AsyncStorage.getItem(`session-${dateStr}`); // Eğer session verisi varsa
+
+      if (moodData) {
+        entries.push(JSON.parse(moodData));
+      } else if (sessionData) {
+        entries.push(JSON.parse(sessionData));
+      } else {
+        entries.push({ date: dateStr, activity: 'Günlük veya seans yapıldı, detay girilmedi.' });
+      }
+}
+
 
     const prompt = `Son ${selectedDays} gün içinde kullanıcı şu verileri girdi: ${JSON.stringify(entries)}. Bu verileri analiz ederek kullanıcıya duygusal durumuyla ilgili kısa, empatik bir analiz çıkar.`;
     const result = await generatePersonalizedResponse(prompt, '');

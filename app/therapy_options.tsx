@@ -38,7 +38,7 @@ export default function TherapyOptionsScreen() {
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.card} onPress={() => router.push('./avatar')}>
+        <TouchableOpacity style={styles.card} onPress={() => router.push('./sessions/video_session')}>
           <Ionicons name="videocam-outline" size={28} color={Colors.light.tint} />
           <View style={styles.textBlock}>
             <Text style={styles.cardTitle}>Görüntülü Terapi</Text>

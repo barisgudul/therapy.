@@ -1,4 +1,6 @@
+// app/text_session.tsx
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -24,6 +26,7 @@ export default function TextSessionScreen() {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
+  // Dot animation (typing indicator)
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
   const dot3 = useRef(new Animated.Value(0)).current;
@@ -57,7 +60,30 @@ export default function TextSessionScreen() {
     if (isTyping) animateDots();
   }, [isTyping]);
 
-  const sendMessage = () => {
+  // Aktiviteleri kaydeden fonksiyon (dizi tipini kontrol ederek)
+  const saveActivity = async () => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const activityKey = `activity-${today}`;
+      let prev = [];
+      const prevRaw = await AsyncStorage.getItem(activityKey);
+      if (prevRaw) {
+        try {
+          const parsed = JSON.parse(prevRaw);
+          prev = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          prev = [];
+        }
+      }
+      const newEntry = { type: 'text_session', time: Date.now() };
+      await AsyncStorage.setItem(activityKey, JSON.stringify([...prev, newEntry]));
+    } catch (e) {
+      // Hata olursa uygulama çökmesin, AI cevabı yine gelsin
+      console.warn('Aktivite kaydedilemedi:', e);
+    }
+  };
+
+  const sendMessage = async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
 
@@ -65,6 +91,10 @@ export default function TextSessionScreen() {
     setInput('');
     setIsTyping(true);
 
+    // Aktiviteyi kaydet (hata olsa da devam et)
+    saveActivity();
+
+    // AI cevabını gecikmeli göster
     setTimeout(() => {
       setIsTyping(false);
       setMessages((prev) => [

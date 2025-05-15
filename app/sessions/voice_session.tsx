@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -133,9 +134,26 @@ export default function VoiceSessionScreen() {
   };
 
   const handleExit = async () => {
-    await stopRecording();
-    router.back();
-  };
+  await stopRecording();
+
+  // --- BURADAN BAŞLIYOR ---
+  const today = new Date().toISOString().split('T')[0];
+  const activityKey = `activity-${today}`;
+  let prev = [];
+  try {
+    const prevRaw = await AsyncStorage.getItem(activityKey);
+    if (prevRaw) prev = JSON.parse(prevRaw);
+  } catch {
+    prev = [];
+  }
+  const newEntry = { type: 'voice_session', time: Date.now() };
+  await AsyncStorage.setItem(activityKey, JSON.stringify([...prev, newEntry]));
+  // --- BURADA BİTİYOR ---
+
+  router.back();
+};
+
+
 
   return (
     <LinearGradient colors={isDark ? ['#000000', '#1c2e40'] : ['#F9FAFB', '#ECEFF4']} style={styles.container}>

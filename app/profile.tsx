@@ -5,15 +5,15 @@ import { useRouter } from 'expo-router';
 import moment from 'moment';
 import { useEffect, useState } from 'react';
 import {
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { Colors } from '../constants/Colors';
@@ -149,8 +149,9 @@ export default function ProfileScreen() {
             therapy<Text style={styles.dot}>.</Text>
           </Text>
 
-          <Text style={styles.title}>Profilini Oluştur</Text>
+          <Text style={styles.title}>Profilini Düzenle</Text>
           <Text style={styles.subtitle}>Kendini dilediğin kadar ifade edebilirsin ✨</Text>
+          <Text style={styles.subtitle}>Profilini ne kadar detaylı doldurursan, sana o kadar iyi destek sunabiliriz!</Text>
 
           {renderTouchable(nickname, 'Sana nasıl hitap etmemizi istersin?', 'nickname')}
           {renderTouchable(birthDate, 'Doğum Tarihin?', 'birthDate')}

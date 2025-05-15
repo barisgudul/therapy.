@@ -17,10 +17,14 @@ import {
 import * as Animatable from 'react-native-animatable';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { Colors } from '../constants/Colors';
-import { generatePersonalizedResponse } from '../hooks/useGemini';
 
-/* ──────────────────────────────────────────────── */
-/* data */
+// MOCK API: Gerçek API gelince değiştir
+async function generatePersonalizedResponse(note: string, mood: string): Promise<string> {
+  return new Promise(resolve =>
+    setTimeout(() => resolve(`Bugünkü ruh halin "${mood}" olarak kaydedildi. Yorumun: "${note}"`), 1200)
+  );
+}
+
 const moods = ['😊', '😔', '😡', '😟', '😍', '😴', '😐', '🤯'];
 const moodLabels: Record<string, string> = {
   '😊': 'Neşeli bir gün',
@@ -34,8 +38,6 @@ const moodLabels: Record<string, string> = {
 };
 const { width } = Dimensions.get('window');
 
-/* ──────────────────────────────────────────────── */
-/* Daily‑Streak component (değişmedi) */
 function DailyStreak({ refresh }: { refresh: number }) {
   const [filled, setFilled] = useState<Set<string>>(new Set());
 
@@ -81,8 +83,6 @@ function DailyStreak({ refresh }: { refresh: number }) {
   );
 }
 
-/* ──────────────────────────────────────────────── */
-/* Screen */
 export default function DailyWriteScreen() {
   const router = useRouter();
   const [selectedMood, setSelectedMood] = useState('');
@@ -91,36 +91,69 @@ export default function DailyWriteScreen() {
   const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [aiMessage, setAiMessage] = useState('');
   const [refresh, setRefresh] = useState(Date.now());
+  const [saving, setSaving] = useState(false);
 
-  /* ----------- KAYDET ----------- */
+  // Güvenli ekleme fonksiyonu (overwrite riski yok)
+  async function appendActivity(activityKey: string, newEntry: any) {
+    let prev: any[] = [];
+    try {
+      const prevRaw = await AsyncStorage.getItem(activityKey);
+      if (prevRaw) prev = JSON.parse(prevRaw);
+      if (!Array.isArray(prev)) prev = [];
+    } catch {
+      prev = [];
+    }
+    prev.push(newEntry);
+    await AsyncStorage.setItem(activityKey, JSON.stringify(prev));
+  }
+
+  // Kaydet butonuna basınca
   const saveSession = async () => {
-    if (!note || !selectedMood) return;
+    if (!note || !selectedMood || saving) return;
+    setSaving(true);
 
-    const now   = Date.now();
+    const now = Date.now();
     const today = new Date(now).toISOString().split('T')[0];
-    const personalized = await generatePersonalizedResponse(note, selectedMood);
+    let initialMsg = `Kaydediliyor...`;
 
-    await AsyncStorage.multiSet([
-      [
-        `mood-${today}`,
-        JSON.stringify({ mood: selectedMood, reflection: note, timestamp: now })
-      ],
-      ['todayDate',      today],
-      ['todayMessage',   personalized],
-      ['lastReflectionAt', String(now)],
-    ]);
-
-    setAiMessage(personalized);
+    setAiMessage(initialMsg);
     setFeedbackVisible(true);
-    setRefresh(now);
+
+    // Async işlemleri başlat
+    generatePersonalizedResponse(note, selectedMood).then(async (personalized) => {
+      setAiMessage(personalized);
+
+      await AsyncStorage.multiSet([
+        [
+          `mood-${today}`,
+          JSON.stringify({ mood: selectedMood, reflection: note, timestamp: now })
+        ],
+        ['todayDate', today],
+        ['todayMessage', personalized],
+        ['lastReflectionAt', String(now)],
+      ]);
+
+      // Activity array'e güvenli şekilde ekle!
+      const activityKey = `activity-${today}`;
+      const newEntry = { type: 'daily_write', time: now };
+      await appendActivity(activityKey, newEntry);
+
+      // Test için: hemen kayıttan sonra oku ve logla!
+      const check = await AsyncStorage.getItem(activityKey);
+      console.log('Günlük activity:', activityKey, check);
+
+      setRefresh(Date.now());
+      setSaving(false);
+    });
   };
 
   const closeFeedback = () => {
     setFeedbackVisible(false);
+    setNote('');
+    setSelectedMood('');
     router.replace('/');
   };
 
-  /* ----------- UI ----------- */
   return (
     <LinearGradient colors={['#F9FAFB', '#ECEFF4']} style={styles.container}>
       {/* back */}
@@ -128,21 +161,19 @@ export default function DailyWriteScreen() {
         <Ionicons name="chevron-back" size={24} color={Colors.light.tint} />
       </TouchableOpacity>
 
-      {/* heading */}
-      <Text style={styles.brand}>therapy<Text style={styles.dot}>.</Text></Text>
+      <Text style={styles.brand}>
+        therapy<Text style={styles.dot}>.</Text>
+      </Text>
       <Text style={styles.title}>Zihnine kulak ver.</Text>
       <Text style={styles.subtitle}>Bugün nasıl hissettiğini birlikte keşfedelim.</Text>
 
-      {/* streak */}
       <DailyStreak refresh={refresh} />
 
-      {/* content */}
       <KeyboardAwareScrollView
         keyboardShouldPersistTaps="handled"
         extraScrollHeight={100}
         contentContainerStyle={styles.content}
       >
-        {/* emoji grid */}
         <View style={styles.moodGrid}>
           {moods.map((m) => (
             <TouchableOpacity
@@ -155,7 +186,6 @@ export default function DailyWriteScreen() {
           ))}
         </View>
 
-        {/* note prompt */}
         <TouchableOpacity style={styles.promptCard} onPress={() => setInputVisible(true)}>
           <Ionicons name="create-outline" size={18} color={Colors.light.tint} style={{ marginRight: 8 }} />
           <Text style={[styles.promptText, note && styles.promptFilled]} numberOfLines={1}>
@@ -163,17 +193,15 @@ export default function DailyWriteScreen() {
           </Text>
         </TouchableOpacity>
 
-        {/* save */}
         <TouchableOpacity
-          style={[styles.saveBtn, (!selectedMood || !note) && styles.saveDisabled]}
+          style={[styles.saveBtn, (!selectedMood || !note || saving) && styles.saveDisabled]}
           onPress={saveSession}
-          disabled={!selectedMood || !note}
+          disabled={!selectedMood || !note || saving}
         >
-          <Text style={styles.saveText}>Günlüğü Tamamla</Text>
+          <Text style={styles.saveText}>{saving ? 'Kaydediliyor...' : 'Günlüğü Tamamla'}</Text>
         </TouchableOpacity>
       </KeyboardAwareScrollView>
 
-      {/* note modal */}
       <Modal visible={inputVisible} transparent animationType="fade">
         <Pressable style={styles.overlay} onPress={() => setInputVisible(false)}>
           <View style={styles.modalCard}>
@@ -190,6 +218,7 @@ export default function DailyWriteScreen() {
             <TouchableOpacity
               style={[styles.closeBtn, !note && styles.saveDisabled]}
               onPress={() => setInputVisible(false)}
+              disabled={!note}
             >
               <Text style={styles.closeText}>Tamam</Text>
             </TouchableOpacity>
@@ -197,7 +226,6 @@ export default function DailyWriteScreen() {
         </Pressable>
       </Modal>
 
-      {/* feedback modal */}
       <Modal visible={feedbackVisible} transparent animationType="fade" onRequestClose={closeFeedback}>
         <Pressable style={styles.overlay} onPress={closeFeedback}>
           <View style={styles.modalCard}>
@@ -214,8 +242,6 @@ export default function DailyWriteScreen() {
   );
 }
 
-/* ──────────────────────────────────────────────── */
-/* styles */
 const glass = { borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' };
 
 const styles = StyleSheet.create({
@@ -225,32 +251,23 @@ const styles = StyleSheet.create({
   dot: { color: '#5DA1D9', fontSize: 26, fontWeight: '700' },
   title: { fontSize: 26, fontWeight: '700', color: '#111827', textAlign: 'center' },
   subtitle: { fontSize: 15, color: '#6c7580', textAlign: 'center', marginBottom: 8 },
-
-  /* streak */
   streakWrapper: { alignItems: 'center', marginVertical: 20 },
   streakTitle: { fontSize: 18, color: Colors.light.tint, fontWeight: '700', letterSpacing: 0.4, marginBottom: 8 },
   streakRow: { flexDirection: 'row', columnGap: 12 },
   streakDot: { width: 20, height: 20, borderRadius: 10 },
   dotActive: { backgroundColor: Colors.light.tint },
   dotInactive: { backgroundColor: '#fff', borderWidth: 1.4, borderColor: '#E5E7EB' },
-
-  /* content */
   content: { flexGrow: 1, alignItems: 'center', justifyContent: 'space-evenly', paddingVertical: 10 },
-
   moodGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 24, rowGap: 16 },
   moodBtn: { padding: 6, borderRadius: 18, ...glass },
   selectedMood: { backgroundColor: Colors.light.tint },
   moodIcon: { fontSize: 28 },
-
   promptCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 24, paddingVertical: 14, paddingHorizontal: 20, ...glass, marginTop: 4 },
   promptText: { fontSize: 15, fontWeight: '600', color: Colors.light.tint },
   promptFilled: { color: '#111827', fontWeight: '500' },
-
   saveBtn: { backgroundColor: Colors.light.tint, borderRadius: 32, paddingVertical: 16, paddingHorizontal: 48, marginTop: 10 },
   saveDisabled: { backgroundColor: '#ccd9e1' },
   saveText: { color: '#fff', fontWeight: '600' },
-
-  /* modal */
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' },
   modalCard: { backgroundColor: '#fff', borderRadius: 28, padding: 26, width: width - 48, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.08, shadowOffset: { width: 0, height: 6 }, shadowRadius: 12, elevation: 4 },
   modalTitle: { fontSize: 18, fontWeight: '700', color: Colors.light.tint, marginBottom: 12, textAlign: 'center' },
