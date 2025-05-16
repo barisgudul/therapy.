@@ -121,32 +121,51 @@ export default function TextSessionScreen() {
   }, []);
 
   const sendMessage = async () => {
-    const trimmed = input.trim();
-    if (!trimmed || isTyping) return;
+  const trimmed = input.trim();
+  if (!trimmed || isTyping) return;
 
-    setMessages(prev => [...prev, { sender: 'user', text: trimmed }]);
-    setInput('');
-    setIsTyping(true);
+  // --- 1. Tüm geçmişi chatHistory olarak oluştur
+  const fullHistory = [
+    ...messages,
+    { sender: 'user', text: trimmed }
+  ];
+  const chatHistory = fullHistory
+    .map(m => m.sender === 'user' ? `Kullanıcı: ${m.text}` : `Terapist: ${m.text}`)
+    .join('\n');
 
-    try {
-      const aiReply = await generateTherapistReply(
-        therapistId ?? "therapist1",
-        trimmed,
-        ""
-      );
-      setMessages(prev => [
-        ...prev,
-        { sender: 'ai', text: aiReply }
-      ]);
-    } catch (err) {
-      setMessages(prev => [
-        ...prev,
-        { sender: 'ai', text: "Şu anda bir sorun oluştu, lütfen tekrar dene." }
-      ]);
-    } finally {
-      setIsTyping(false);
-    }
-  };
+  // --- 2. Mesaj sayısı (yeni mesajla toplam mesaj)
+  const messageCount = fullHistory.length;
+
+  setMessages(prev => [...prev, { sender: 'user', text: trimmed }]);
+  setInput('');
+  setIsTyping(true);
+
+  try {
+    // --- 3. Fonksiyona messageCount parametresi ekleniyor
+    const aiReply = await generateTherapistReply(
+      therapistId ?? "therapist1",
+      trimmed,
+      "",
+      chatHistory,
+      messageCount      // 👈 5. parametre olarak gönder
+    );
+    setMessages(prev => [
+      ...prev,
+      { sender: 'ai', text: aiReply }
+    ]);
+  } catch (err) {
+    setMessages(prev => [
+      ...prev,
+      { sender: 'ai', text: "Şu anda bir sorun oluştu, lütfen tekrar dene." }
+    ]);
+  } finally {
+    setIsTyping(false);
+  }
+};
+
+
+
+
 
   const handleBack = () => {
     if (messages.length > 0 && typeof saveToSessionData === "function") {
