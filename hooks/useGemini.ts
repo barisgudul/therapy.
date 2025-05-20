@@ -199,3 +199,62 @@ Gereksiz tekrar veya robotik cümlelerden kaçın.
 
   return await sendToGemini(prompt);
 }
+
+// ---- GÜNLÜK ANALİZİ ----
+export interface DiaryAnalysis {
+  feedback: string;
+  questions: string[];
+  mood: string;
+  tags: string[];
+}
+
+export const analyzeDiaryEntry = async (text: string): Promise<DiaryAnalysis> => {
+  try {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=YOUR_API_KEY', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `Aşağıdaki günlük yazısını analiz et ve şu bilgileri ver:
+            1. Duygu durumu (mood): Kullanıcının genel duygu durumunu belirle (mutlu, üzgün, kaygılı, nötr vb.)
+            2. Etiketler (tags): Günlükte geçen önemli konuları etiketle (örn: aile, iş, sağlık, ilişki vb.)
+            3. Geri bildirim: Kullanıcıya destekleyici ve yapıcı bir geri bildirim ver
+            4. Sorular: Kullanıcıyı düşünmeye teşvik eden 3 soru öner
+
+            Günlük yazısı:
+            ${text}
+
+            Yanıtını şu formatta ver:
+            {
+              "mood": "duygu durumu",
+              "tags": ["etiket1", "etiket2", "etiket3"],
+              "feedback": "geri bildirim metni",
+              "questions": ["soru1", "soru2", "soru3"]
+            }`
+          }]
+        }]
+      })
+    });
+
+    const data = await response.json();
+    const analysis = JSON.parse(data.candidates[0].content.parts[0].text);
+
+    return {
+      feedback: analysis.feedback,
+      questions: analysis.questions,
+      mood: analysis.mood,
+      tags: analysis.tags
+    };
+  } catch (error) {
+    console.error('AI analiz hatası:', error);
+    return {
+      feedback: 'Üzgünüm, şu anda analiz yapamıyorum. Lütfen daha sonra tekrar deneyin.',
+      questions: [],
+      mood: 'neutral',
+      tags: []
+    };
+  }
+};

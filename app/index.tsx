@@ -158,6 +158,11 @@ export default function HomeScreen() {
               <Text style={styles.outlinedText}>AI Ruh Hâli Özeti</Text>
             </TouchableOpacity>
 
+            <TouchableOpacity style={styles.buttonUnified} onPress={() => router.push('/diary')}>
+              <Ionicons name="book-outline" size={22} color={Colors.light.tint} style={{ marginRight: 10 }} />
+              <Text style={styles.outlinedText}>AI Destekli Günlük</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.buttonUnified} onPress={handleStart}>
               <Ionicons name="people-outline" size={20} color={Colors.light.tint} style={{ marginRight: 8 }} />
               <Text style={styles.secondaryText}>Terapistini Seç</Text>
