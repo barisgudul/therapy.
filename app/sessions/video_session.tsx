@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView } from 'expo-camera';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -25,13 +25,12 @@ const therapistImages: Record<string, any> = {
   therapist1: require('../../assets/Terapist_1.jpg'),
   therapist2: require('../../assets/Terapist_2.jpg'),
   therapist3: require('../../assets/Terapist_3.jpg'),
+  coach1: require('../../assets/coach-can.jpg')
 };
 
 export default function SessionScreen() {
-  const { name, imageId } = useLocalSearchParams<{ name: string; imageId: string }>();
-  const therapistImage = therapistImages[imageId ?? 'therapist1'];
-
-  const [permission, requestPermission] = useCameraPermissions();
+  const { therapistId } = useLocalSearchParams<{ therapistId: string }>();
+  const router = useRouter();
   const [cameraVisible, setCameraVisible] = useState(true);
   const [micOn, setMicOn] = useState(false);
   const [volume, setVolume] = useState<number>(0);
@@ -40,10 +39,8 @@ export default function SessionScreen() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const pan = useRef(new Animated.ValueXY({ x: width - PIP_SIZE - 10, y: 100 })).current;
-  const router = useRouter();
 
   useEffect(() => {
-    if (!permission?.granted) requestPermission();
     requestMicrophonePermission();
     return () => {
       stopListening();
@@ -138,13 +135,14 @@ export default function SessionScreen() {
     onPanResponderRelease: () => pan.flattenOffset(),
   });
 
-  if (!permission) return <Text>İzin kontrol ediliyor...</Text>;
-  if (!permission.granted) return <Text>Kamera izni reddedildi.</Text>;
-
-  // --- Kapatma tuşunda merkezi kayıt fonksiyonu entegre edildi ---
   return (
     <View style={styles.container}>
-      <Image source={therapistImage} style={styles.therapist} resizeMode="cover" />
+      <View style={styles.therapistVideo}>
+        <Image 
+          source={therapistImages[therapistId] || therapistImages.therapist1} 
+          style={styles.therapistImage}
+        />
+      </View>
       {cameraVisible && (
         <Animated.View
           style={[styles.pipWrapper, { transform: pan.getTranslateTransform() }]}
@@ -192,10 +190,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  therapist: {
+  therapistVideo: {
     width: '100%',
     height: '100%',
     position: 'absolute',
+  },
+  therapistImage: {
+    width: '100%',
+    height: '100%',
   },
   pipWrapper: {
     position: 'absolute',

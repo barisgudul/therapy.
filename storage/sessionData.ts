@@ -29,19 +29,4 @@ export async function saveToSessionData({
   }
   session.date = today;
   await AsyncStorage.setItem(key, JSON.stringify(session));
-  await pruneOldSessionData(30);
-}
-
-async function pruneOldSessionData(maxDays: number) {
-  const allKeys = await AsyncStorage.getAllKeys();
-  const sessionKeys = allKeys.filter(k => k.startsWith('session-'));
-  if (sessionKeys.length > maxDays) {
-    const sorted = sessionKeys
-      .map(k => ({ key: k, date: k.slice(8) }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-    const toDelete = sorted.slice(0, sessionKeys.length - maxDays);
-    for (const item of toDelete) {
-      await AsyncStorage.removeItem(item.key);
-    }
-  }
 }

@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import moment from 'moment';
 import { useEffect, useState } from 'react';
 import {
+  Alert,
+  Image,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -18,266 +19,506 @@ import {
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { Colors } from '../constants/Colors';
 
+type RelationshipStatus = 'single' | 'in_relationship' | 'married' | 'complicated' | '';
+type Gender = 'male' | 'female' | 'other' | '';
+type Orientation = 'straight' | 'gay' | 'bisexual' | 'other' | '';
+
 export default function ProfileScreen() {
   const router = useRouter();
   const [nickname, setNickname] = useState('');
   const [birthDate, setBirthDate] = useState('');
-  const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
-  const [profession, setProfession] = useState('');
   const [expectation, setExpectation] = useState('');
-  const [history, setHistory] = useState('');
-  const [activeField, setActiveField] = useState<string | null>(null);
+  const [isDatePickerVisible, setDatePickerVisible] = useState(false);
+  const [therapyGoals, setTherapyGoals] = useState('');
+  const [previousTherapy, setPreviousTherapy] = useState('');
+  const [relationshipStatus, setRelationshipStatus] = useState<RelationshipStatus>('');
+  const [gender, setGender] = useState<Gender>('');
+  const [orientation, setOrientation] = useState<Orientation>('');
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+
+  const relationshipOptions = [
+    { value: 'single', label: 'Bekarım' },
+    { value: 'in_relationship', label: 'İlişkim var' },
+    { value: 'married', label: 'Evliyim' },
+    { value: 'complicated', label: 'Karmaşık' },
+  ];
+
+  const genderOptions = [
+    { value: 'male', label: 'Erkek' },
+    { value: 'female', label: 'Kadın' },
+    { value: 'other', label: 'Diğer' },
+  ];
+
+  const orientationOptions = [
+    { value: 'straight', label: 'Heteroseksüel' },
+    { value: 'gay', label: 'Eşcinsel' },
+    { value: 'bisexual', label: 'Biseksüel' },
+    { value: 'other', label: 'Diğer' },
+  ];
 
   useEffect(() => {
-    (async () => {
+    loadProfile();
+  }, []);
+
+  const loadProfile = async () => {
+    try {
       const stored = await AsyncStorage.getItem('userProfile');
       if (stored) {
         const parsed = JSON.parse(stored);
         setNickname(parsed.nickname || '');
         setBirthDate(parsed.birthDate || '');
-        setProfession(parsed.profession || '');
         setExpectation(parsed.expectation || '');
-        setHistory(parsed.history || '');
+        setTherapyGoals(parsed.therapyGoals || '');
+        setPreviousTherapy(parsed.previousTherapy || '');
+        setRelationshipStatus(parsed.relationshipStatus || '');
+        setGender(parsed.gender || '');
+        setOrientation(parsed.orientation || '');
+        setProfileImage(parsed.profileImage || null);
       }
-    })();
-  }, []);
-
-  const handleConfirm = (date: Date) => {
-    setBirthDate(moment(date).format('DD/MM/YYYY'));
-    setDatePickerVisibility(false);
-    setActiveField(null);
+    } catch (error) {
+      console.error('Profil yüklenemedi:', error);
+    }
   };
 
   const handleSave = async () => {
-    const data = { nickname, birthDate, profession, expectation, history };
-    await AsyncStorage.setItem('userProfile', JSON.stringify(data));
-    router.replace('/');
+    if (!nickname.trim()) {
+      Alert.alert('Uyarı', 'Lütfen bir isim girin.');
+      return;
+    }
+
+    try {
+      const data = {
+        nickname,
+        birthDate,
+        expectation,
+        therapyGoals,
+        previousTherapy,
+        relationshipStatus,
+        gender,
+        orientation,
+        profileImage
+      };
+      await AsyncStorage.setItem('userProfile', JSON.stringify(data));
+      Alert.alert('Başarılı', 'Profil kaydedildi.', [
+        { text: 'Tamam', onPress: () => router.replace('/') }
+      ]);
+    } catch (error) {
+      Alert.alert('Hata', 'Profil kaydedilemedi.');
+    }
   };
 
-  const renderModalInput = (
-    field: string,
+  const showDatePicker = () => {
+    setDatePickerVisible(true);
+  };
+
+  const hideDatePicker = () => {
+    setDatePickerVisible(false);
+  };
+
+  const handleConfirmDate = (date: Date) => {
+    const today = new Date();
+    if (date > today) {
+      Alert.alert('Hata', 'Gelecek bir tarih seçemezsiniz.');
+      return;
+    }
+    const formattedDate = date.toLocaleDateString('tr-TR');
+    setBirthDate(formattedDate);
+    hideDatePicker();
+  };
+
+  const pickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('İzin Gerekli', 'Kamera izni gereklidir.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setProfileImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Fotoğraf çekilirken hata oluştu:', error);
+      Alert.alert('Hata', 'Fotoğraf çekilirken bir hata oluştu.');
+    }
+  };
+
+  const showImagePickerOptions = () => {
+    Alert.alert(
+      'Fotoğraf Çek',
+      'Profil fotoğrafı için yeni bir fotoğraf çekin',
+      [
+        {
+          text: 'Fotoğraf Çek',
+          onPress: () => pickImage(),
+        },
+        {
+          text: 'İptal',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  const renderInput = (
     label: string,
     value: string,
-    onChange: (val: string) => void,
-    multiline = false
+    onChangeText: (text: string) => void,
+    placeholder: string,
+    icon: string,
+    multiline = false,
+    onPress?: () => void
   ) => (
-    <Modal visible={activeField === field} transparent animationType="fade">
-      <View style={styles.modalBackdrop}>
-        <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>{label}</Text>
-          <TextInput
-            style={styles.modalInput}
-            placeholder={label}
-            placeholderTextColor="#aaa"
-            value={value}
-            onChangeText={onChange}
-            multiline={multiline}
-          />
-          <TouchableOpacity
-            style={styles.modalButton}
-            onPress={async () => {
-              const updatedData = {
-                nickname,
-                birthDate,
-                profession,
-                expectation,
-                history,
-              };
-              await AsyncStorage.setItem('userProfile', JSON.stringify(updatedData));
-              setActiveField(null);
-            }}
-          >
-            <Text style={styles.modalButtonText}>Tamamdır</Text>
-          </TouchableOpacity>
-        </View>
+    <View style={styles.inputContainer}>
+      <View style={styles.inputHeader}>
+        <Ionicons name={icon as any} size={18} color={Colors.light.tint} />
+        <Text style={styles.label}>{label}</Text>
       </View>
-    </Modal>
+      <TouchableOpacity 
+        onPress={onPress}
+        style={[styles.input, onPress && styles.inputTouchable]}
+        disabled={!onPress}
+      >
+        <TextInput
+          style={[styles.inputText, onPress && styles.inputTextTouchable]}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor="#9CA3AF"
+          multiline={multiline}
+          textAlignVertical={multiline ? 'top' : 'center'}
+          editable={!onPress}
+        />
+        {onPress && (
+          <Ionicons name="calendar" size={18} color={Colors.light.tint} />
+        )}
+      </TouchableOpacity>
+    </View>
   );
 
-  const renderDatePickerModal = () => (
-    <DateTimePickerModal
-      isVisible={activeField === 'birthDate'}
-      mode="date"
-      onConfirm={async (date) => {
-        const formatted = moment(date).format('DD/MM/YYYY');
-        setBirthDate(formatted);
-        setDatePickerVisibility(false);
-        setActiveField(null);
-        const updatedData = {
-          nickname,
-          birthDate: formatted,
-          profession,
-          expectation,
-          history,
-        };
-        await AsyncStorage.setItem('userProfile', JSON.stringify(updatedData));
-      }}
-      onCancel={() => setActiveField(null)}
-      maximumDate={new Date()}
-    />
-  );
-
-  const renderTouchable = (value: string, placeholder: string, field: string) => (
-    <TouchableOpacity
-      style={[styles.input, !value && { backgroundColor: '#f3f4f6', borderColor: '#d1d5db' }]}
-      onPress={() => {
-        if (field === 'birthDate') {
-          setActiveField('birthDate');
-          setDatePickerVisibility(true);
-        } else {
-          setActiveField(field);
-        }
-      }}
-    >
-      <Text style={[styles.inputText, !value && { color: '#c2c6cc' }]}> {value || placeholder} </Text>
-    </TouchableOpacity>
+  const renderSelector = (
+    label: string,
+    options: { value: string; label: string }[],
+    selectedValue: string,
+    onSelect: (value: any) => void,
+    icon: string
+  ) => (
+    <View style={styles.inputContainer}>
+      <View style={styles.inputHeader}>
+        <Ionicons name={icon as any} size={18} color={Colors.light.tint} />
+        <Text style={styles.label}>{label}</Text>
+      </View>
+      <View style={styles.selectorContainer}>
+        {options.map((option) => (
+          <TouchableOpacity
+            key={option.value}
+            style={[
+              styles.selectorOption,
+              selectedValue === option.value && styles.selectorOptionSelected
+            ]}
+            onPress={() => onSelect(option.value)}
+          >
+            <Text style={[
+              styles.selectorOptionText,
+              selectedValue === option.value && styles.selectorOptionTextSelected
+            ]}>
+              {option.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
   );
 
   return (
-    <LinearGradient colors={['#fdfdfd', '#f1f5f9']} style={styles.container}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.back}>
-        <Ionicons name="chevron-back" size={26} color={Colors.light.tint} />
-      </TouchableOpacity>
+    <LinearGradient colors={['#F8F9FF', '#ECEFF4']} style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="chevron-back" size={24} color={Colors.light.tint} />
+        </TouchableOpacity>
+        <Text style={styles.title}>Terapi Profili</Text>
+      </View>
 
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={styles.content}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
       >
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <Text style={styles.brand}>
-            therapy<Text style={styles.dot}>.</Text>
-          </Text>
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          <View style={styles.profileImageContainer}>
+            <TouchableOpacity 
+              style={styles.profileImage}
+              onPress={showImagePickerOptions}
+            >
+              {profileImage ? (
+                <Image source={{ uri: profileImage }} style={styles.profileImageContent} />
+              ) : (
+                <View style={styles.profileImagePlaceholder}>
+                  <Ionicons name="person" size={36} color={Colors.light.tint} />
+                  <Text style={styles.profileImageText}>Fotoğraf Ekle</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
 
-          <Text style={styles.title}>Profilini Düzenle</Text>
-          <Text style={styles.subtitle}>Kendini dilediğin kadar ifade edebilirsin ✨</Text>
-          <Text style={styles.subtitle}>Profilini ne kadar detaylı doldurursan, sana o kadar iyi destek sunabiliriz!</Text>
+          <View style={styles.form}>
+            <Text style={styles.sectionTitle}>Temel Bilgiler</Text>
+            {renderInput('Terapide Kullanmak İstediğiniz İsim', nickname, setNickname, 'Size nasıl hitap etmemi istersiniz?', 'person-outline')}
+            {renderInput(
+              'Doğum Tarihi',
+              birthDate,
+              setBirthDate,
+              'GG/AA/YYYY',
+              'calendar-outline',
+              false,
+              showDatePicker
+            )}
+            {renderSelector('Cinsiyet', genderOptions, gender, setGender, 'male-outline')}
+            {renderSelector('Cinsel Yönelim', orientationOptions, orientation, setOrientation, 'heart-outline')}
+            {renderSelector('İlişki Durumu', relationshipOptions, relationshipStatus, setRelationshipStatus, 'heart-outline')}
 
-          {renderTouchable(nickname, 'Sana nasıl hitap etmemizi istersin?', 'nickname')}
-          {renderTouchable(birthDate, 'Doğum Tarihin?', 'birthDate')}
-          {renderTouchable(profession, 'Mesleğin nedir?', 'profession')}
-          {renderTouchable(expectation, 'Terapiden beklentilerin neler?', 'expectation')}
-          {renderTouchable(history, 'Hayatında iz bırakan deneyimlerin?', 'history')}
+            <Text style={styles.sectionTitle}>Terapi Bilgileri</Text>
+            {renderInput(
+              'Terapiden Beklentileriniz',
+              expectation,
+              setExpectation,
+              'Terapiden ne bekliyorsunuz?',
+              'heart-outline',
+              true
+            )}
+            {renderInput(
+              'Terapi Hedefleriniz',
+              therapyGoals,
+              setTherapyGoals,
+              'Terapide ulaşmak istediğiniz hedefler neler?',
+              'flag-outline',
+              true
+            )}
+            {renderInput(
+              'Önceki Terapi Deneyimleriniz',
+              previousTherapy,
+              setPreviousTherapy,
+              'Daha önce terapi aldınız mı? Varsa deneyimleriniz neler?',
+              'time-outline',
+              true
+            )}
 
-          <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-            <Text style={styles.saveText}>Devam Etmeye Hazırım</Text>
-          </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.button, !nickname && styles.buttonDisabled]} 
+              onPress={handleSave}
+              disabled={!nickname}
+            >
+              <Text style={styles.buttonText}>
+                {nickname ? 'Terapiye Başla' : 'İsim Girin'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {renderModalInput('nickname', 'Sana nasıl hitap etmemizi istersin?', nickname, setNickname)}
-      {renderModalInput('profession', 'Mesleğin nedir?', profession, setProfession)}
-      {renderModalInput('expectation', 'Terapiden beklentilerin neler?', expectation, setExpectation, true)}
-      {renderModalInput('history', 'Hayatında iz bırakan deneyimlerin?', history, setHistory, true)}
-      {renderDatePickerModal()}
+      <DateTimePickerModal
+        isVisible={isDatePickerVisible}
+        mode="date"
+        onConfirm={handleConfirmDate}
+        onCancel={hideDatePicker}
+        maximumDate={new Date()}
+        locale="tr"
+        cancelTextIOS="İptal"
+        confirmTextIOS="Tamam"
+      />
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: 70, paddingHorizontal: 24 },
-  back: { position: 'absolute', top: 50, left: 20, zIndex: 10 },
-  scroll: { paddingBottom: 40 },
-  brand: {
-    textAlign: 'center',
+  container: {
+    flex: 1,
+    backgroundColor: '#F8F9FF',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 60,
+    paddingHorizontal: 24,
+    marginBottom: 24,
+  },
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  title: {
     fontSize: 24,
     fontWeight: '600',
-    color: Colors.light.tint,
-    textTransform: 'lowercase',
-    marginBottom: 10,
+    color: '#1A1F36',
+    letterSpacing: -0.4,
   },
-  dot: { color: '#5DA1D9', fontSize: 28, fontWeight: '700' },
-  title: {
-    textAlign: 'center',
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#1a1c1e',
+  content: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  profileImageContainer: {
+    alignItems: 'center',
+    marginBottom: 28,
+    paddingTop: 20,
+  },
+  profileImage: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: '#fff',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  profileImageContent: {
+    width: '100%',
+    height: '100%',
+  },
+  profileImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8F9FF',
+  },
+  profileImageText: {
+    marginTop: 6,
+    fontSize: 13,
+    color: Colors.light.tint,
+    fontWeight: '500',
+  },
+  form: {
+    padding: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1A1F36',
+    marginTop: 28,
+    marginBottom: 16,
+    letterSpacing: -0.3,
+  },
+  inputContainer: {
+    marginBottom: 20,
+  },
+  inputHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 6,
   },
-  subtitle: {
-    textAlign: 'center',
-    fontSize: 16,
-    color: '#7a848f',
-    marginBottom: 28,
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2D3748',
+    marginLeft: 6,
+    letterSpacing: -0.2,
   },
   input: {
-    backgroundColor: '#ffffff',
-    borderRadius: 26,
-    padding: 18,
-    fontSize: 16,
-    marginBottom: 20,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 12,
+    fontSize: 14,
+    color: '#1A1F36',
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: '#E8ECF4',
     shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 4,
     elevation: 1,
   },
+  inputTouchable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   inputText: {
-    color: '#1e1e1e',
-    fontSize: 15,
-  },
-  saveButton: {
-    backgroundColor: Colors.light.tint,
-    borderRadius: 32,
-    paddingVertical: 16,
-    paddingHorizontal: 44,
-    alignSelf: 'center',
-    marginTop: 18,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  saveText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
+    fontSize: 14,
+    color: '#1A1F36',
+    letterSpacing: -0.2,
   },
-  modalCard: {
-    backgroundColor: '#fff',
-    borderRadius: 32,
-    padding: 28,
-    width: '100%',
-    maxWidth: 420,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 10,
-    elevation: 4,
+  inputTextTouchable: {
+    color: '#1A1F36',
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.light.tint,
-    marginBottom: 18,
-    textAlign: 'center',
-  },
-  modalInput: {
-    width: '100%',
-    backgroundColor: '#f9fafb',
-    borderRadius: 22,
-    padding: 18,
-    fontSize: 15,
-    marginBottom: 20,
+  multilineInput: {
+    height: 100,
     textAlignVertical: 'top',
-    color: '#1c1c1e',
   },
-  modalButton: {
+  selectorContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  selectorOption: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E8ECF4',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.01,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  selectorOptionSelected: {
     backgroundColor: Colors.light.tint,
-    paddingHorizontal: 32,
-    paddingVertical: 13,
-    borderRadius: 30,
+    borderColor: Colors.light.tint,
+    shadowColor: Colors.light.tint,
+    shadowOpacity: 0.08,
   },
-  modalButtonText: {
+  selectorOptionText: {
+    fontSize: 13,
+    color: '#4A5568',
+    fontWeight: '500',
+  },
+  selectorOptionTextSelected: {
     color: '#fff',
-    fontWeight: '600',
+  },
+  button: {
+    backgroundColor: Colors.light.tint,
+    borderRadius: 16,
+    padding: 14,
+    alignItems: 'center',
+    marginTop: 32,
+    marginBottom: 20,
+    shadowColor: Colors.light.tint,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  buttonDisabled: {
+    backgroundColor: '#CBD5E1',
+    opacity: 0.7,
+    shadowOpacity: 0.04,
+  },
+  buttonText: {
+    color: '#fff',
     fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: -0.2,
   },
 });

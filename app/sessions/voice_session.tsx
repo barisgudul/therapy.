@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  Image,
   PermissionsAndroid,
   Platform,
   StyleSheet,
@@ -16,7 +17,15 @@ import {
 import { Colors } from '../../constants/Colors';
 import { saveToSessionData } from '../../storage/sessionData'; // EKLENDİ
 
+const therapistImages: Record<string, any> = {
+  therapist1: require('../../assets/Terapist_1.jpg'),
+  therapist2: require('../../assets/Terapist_2.jpg'),
+  therapist3: require('../../assets/Terapist_3.jpg'),
+  coach1: require('../../assets/coach-can.jpg')
+};
+
 export default function VoiceSessionScreen() {
+  const { therapistId } = useLocalSearchParams<{ therapistId: string }>();
   const router = useRouter();
   const recording = useRef<Audio.Recording | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -147,6 +156,13 @@ export default function VoiceSessionScreen() {
 
   return (
     <LinearGradient colors={isDark ? ['#000000', '#1c2e40'] : ['#F9FAFB', '#ECEFF4']} style={styles.container}>
+      <View style={styles.therapistVideo}>
+        <Image 
+          source={therapistImages[therapistId] || therapistImages.therapist1} 
+          style={styles.therapistImage}
+        />
+      </View>
+
       <TouchableOpacity onPress={handleExit} style={styles.back}>
         <Ionicons name="chevron-back" size={26} color={Colors.light.tint} />
       </TouchableOpacity>
@@ -268,5 +284,19 @@ const styles = StyleSheet.create({
   },
   btnMuted: {
     backgroundColor: '#9AA5B1',
+  },
+  therapistVideo: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  therapistImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
 });

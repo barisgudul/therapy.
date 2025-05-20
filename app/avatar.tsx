@@ -3,13 +3,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
   Dimensions,
-  FlatList,
   Image,
-  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { Colors } from '../constants/Colors';
 
@@ -23,7 +21,7 @@ const avatars = [
     persona: 'Şefkatli ve duygusal, anaç tavırlı',
     style: 'Empati ve dinleme öncelikli, duygulara odaklanır',
     specialty: 'Duygusal zorluklar, özşefkat, ilişki terapisi',
-    motto: '“Duygularını onurlandırmak, kendini iyileştirmenin ilk adımıdır.”',
+    motto: '"Duygularını onurlandırmak, kendini iyileştirmenin ilk adımıdır."',
     about: 'Ben Dr. Elif. Duyguların keşfi ve iyileşme yolculuğunda sana şefkatle eşlik ederim. Seanslarda her duygunun güvenle ifade edilebildiği, yargısız bir alan yaratırım. Stres, özgüven ve ilişki sorunlarında destek olurum.'
   },
   {
@@ -35,7 +33,7 @@ const avatars = [
     persona: 'Mantıklı ve analitik, çözüm odaklı',
     style: 'Yapıcı, net, doğrudan; bilişsel teknikler uygular',
     specialty: 'Aile içi iletişim, ilişki yönetimi, bilişsel davranışçı terapi',
-    motto: '“Her sorunun ardında bir çözüm ve yeni bir başlangıç vardır.”',
+    motto: '"Her sorunun ardında bir çözüm ve yeni bir başlangıç vardır."',
     about: 'Merhaba, ben Dr. Deniz. İlişkilerde denge ve anlayışı güçlendirmeye odaklanırım. Analitik yaklaşımım ile sorunun kökenini keşfeder, pratik ve uygulanabilir çözüm yolları sunarım. Özellikle aile içi iletişimde uzmanım.'
   },
   {
@@ -47,11 +45,22 @@ const avatars = [
     persona: 'Enerjik ve motive edici, genç ruhlu',
     style: 'Cesaretlendirici, pozitif ve umut aşılayan',
     specialty: 'Öz güven, motivasyon, yaşam hedefleri, davranış değişikliği',
-    motto: '“Bugün küçük bir adım, yarın büyük bir değişimin başlangıcıdır.”',
+    motto: '"Bugün küçük bir adım, yarın büyük bir değişimin başlangıcıdır."',
     about: 'Selam! Ben Dr. Lina. Hayata pozitif bakışımla, güçlü yönlerini keşfetmen ve hedeflerine ulaşman için seni desteklerim. Seanslarımda motive edici, pratik ve genç bir enerji sunarım. Hedef belirleme ve değişim konularında yanındayım.'
+  },
+  {
+    id: '4',
+    name: 'Coach Can',
+    imageId: 'coach1',
+    thumbnail: require('../assets/coach-can.jpg'),
+    title: 'Yaşam Koçu',
+    persona: 'Dinamik ve ilham verici, pratik odaklı',
+    style: 'Enerjik, motive edici ve hedef odaklı',
+    specialty: 'Kişisel gelişim, hedef belirleme, performans artırma',
+    motto: '"Başarı, küçük adımların tutarlı bir şekilde atılmasıyla gelir."',
+    about: 'Merhaba! Ben Coach Can. Yaşam koçluğu alanında uzmanlaşmış bir AI koçuyum. Dinamik ve ilham verici yaklaşımımla, potansiyelinizi ortaya çıkarmanıza ve hedeflerinize ulaşmanıza rehberlik ediyorum. Kişisel gelişim, kariyer planlaması ve performans artırma konularında yanınızdayım.'
   }
 ];
-
 
 export default function AvatarScreen() {
   const router = useRouter();
@@ -61,6 +70,10 @@ export default function AvatarScreen() {
       pathname: '/therapist_profile',
       params: { name, imageId },
     });
+  };
+
+  const handleExplore = (imageId: string) => {
+    router.push(`/therapist_profile?id=${imageId}`);
   };
 
   return (
@@ -76,25 +89,21 @@ export default function AvatarScreen() {
       <Text style={styles.title}>Terapistini Seç</Text>
       <Text style={styles.subtitle}>Senin için en uygun uzmanı seçerek yolculuğuna başla.</Text>
 
-      <FlatList
-        data={avatars}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Image source={item.thumbnail} style={styles.avatar} />
+      <View style={styles.list}>
+        {avatars.map((avatar) => (
+          <View key={avatar.id} style={styles.card}>
+            <Image source={avatar.thumbnail} style={styles.avatar} />
             <View style={styles.info}>
-              <Text style={styles.name}>{item.name}</Text>
-              <Text style={styles.titleText}>{item.title}</Text>
-              <TouchableOpacity onPress={() => handleSelect(item.name, item.imageId)} style={styles.explore}>
+              <Text style={styles.name}>{avatar.name}</Text>
+              <Text style={styles.titleText}>{avatar.title}</Text>
+              <TouchableOpacity onPress={() => handleExplore(avatar.imageId)} style={styles.explore}>
                 <Text style={styles.exploreText}>Terapisti İncele</Text>
                 <Ionicons name="arrow-forward" size={16} color={Colors.light.tint} />
               </TouchableOpacity>
             </View>
           </View>
-        )}
-      />
+        ))}
+      </View>
     </LinearGradient>
   );
 }
@@ -154,7 +163,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,
-    elevation: Platform.OS === 'android' ? 3 : 0,
+    elevation: 3,
   },
   avatar: {
     width: 70,
