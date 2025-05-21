@@ -4,19 +4,21 @@ import { CameraView } from 'expo-camera';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated,
-  Dimensions,
-  Image,
-  PanResponder,
-  PermissionsAndroid,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Animated,
+    Dimensions,
+    Image,
+    PanResponder,
+    PermissionsAndroid,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { saveToSessionData } from '../../storage/sessionData'; // EKLENDİ
+import { checkAndUpdateBadges } from '../../utils/badges';
+import { getSessionStats } from '../../utils/helpers';
 
 const { width, height } = Dimensions.get('window');
 const PIP_SIZE = 100;
@@ -135,6 +137,33 @@ export default function SessionScreen() {
     onPanResponderRelease: () => pan.flattenOffset(),
   });
 
+  async function saveSession() {
+    try {
+      await stopListening();
+      await saveToSessionData({
+        sessionType: "video",
+        newMessages: [], // İleride transcript/mesaj vs. gelirse buraya eklersin
+      });
+
+      // Rozetleri kontrol et ve güncelle
+      const sessionStats = await getSessionStats();
+      
+      await checkAndUpdateBadges('session', {
+        textSessions: sessionStats.textSessions,
+        voiceSessions: sessionStats.voiceSessions,
+        videoSessions: sessionStats.videoSessions,
+        totalSessions: sessionStats.totalSessions,
+        diverseSessionCompleted: sessionStats.textSessions > 0 && 
+                               sessionStats.voiceSessions > 0 && 
+                               sessionStats.videoSessions > 0
+      });
+
+      router.back();
+    } catch (error) {
+      console.error('Seans kaydedilirken hata:', error);
+    }
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.therapistVideo}>
@@ -165,14 +194,7 @@ export default function SessionScreen() {
           <Ionicons name={micOn ? 'mic' : 'mic-off'} size={22} color="#fff" />
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={async () => {
-            await stopListening();
-            await saveToSessionData({
-              sessionType: "video",
-              newMessages: [], // İleride transcript/mesaj vs. gelirse buraya eklersin
-            });
-            router.back();
-          }}
+          onPress={saveSession}
           style={[styles.iconBtn, styles.btnEnd]}
         >
           <Ionicons name="close" size={22} color="#fff" />

@@ -8,16 +8,16 @@ import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert,
-  Animated,
-  Dimensions,
-  Image,
-  Modal,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    Animated,
+    Dimensions,
+    Image,
+    Modal,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import DailyStreak from '../components/DailyStreak';
 import { Colors } from '../constants/Colors';
@@ -37,7 +37,7 @@ async function showAllActivities() {
   for (const key of activityKeys) {
     const value = await AsyncStorage.getItem(key);
     try {
-      console.log(key, JSON.parse(value));
+      console.log(key, JSON.parse(value || ''));
     } catch {
       console.log(key, value);
     }
@@ -122,6 +122,16 @@ export default function HomeScreen() {
     Alert.alert('Demo verisi temizlendi.');
   };
 
+  const resetBadges = async () => {
+    try {
+      await AsyncStorage.removeItem('user_badges');
+      Alert.alert('Başarılı', 'Rozetler sıfırlandı. Uygulamayı yeniden başlatın.');
+    } catch (error) {
+      console.error('Rozet sıfırlama hatası:', error);
+      Alert.alert('Hata', 'Rozetler sıfırlanırken bir hata oluştu.');
+    }
+  };
+
   /* ------------- UI ------------- */
   return (
     <LinearGradient colors={['#F9FAFB', '#ECEFF4']} style={styles.flex}>
@@ -146,6 +156,11 @@ export default function HomeScreen() {
             <TouchableOpacity style={styles.buttonUnified} onPress={handleCardPress}>
               <Ionicons name="sparkles-outline" size={22} color={Colors.light.tint} style={{ marginRight: 10 }} />
               <Text style={styles.outlinedText}>Bugün nasıl hissediyorsun?</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.buttonUnified} onPress={() => router.push('/achievements')}>
+              <Ionicons name="trophy-outline" size={22} color={Colors.light.tint} style={{ marginRight: 10 }} />
+              <Text style={styles.outlinedText}>Başarılarım</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.buttonUnified} onPress={() => router.push('/streak_history')}>
@@ -189,6 +204,22 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Debug butonu - TESTİ BİTİNCE KALDIR */}
+      <TouchableOpacity 
+        style={{
+          position: 'absolute',
+          bottom: 20,
+          right: 20,
+          backgroundColor: '#ff6b6b',
+          padding: 10,
+          borderRadius: 8,
+          zIndex: 100
+        }}
+        onPress={resetBadges}
+      >
+        <Text style={{ color: '#fff' }}>Rozetleri Sıfırla</Text>
+      </TouchableOpacity>
 
       {modalVisible && <BlurView intensity={60} tint="default" style={StyleSheet.absoluteFill} />}
 
@@ -281,19 +312,6 @@ const styles = StyleSheet.create({
     width: '100%', 
     height: 200, 
     marginBottom: 16 
-  },
-  title: { 
-    textAlign: 'center', 
-    fontSize: 26, 
-    fontWeight: '700', 
-    color: '#1a1c1e', 
-    marginBottom: 4 
-  },
-  subtitle: { 
-    textAlign: 'center', 
-    fontSize: 15, 
-    color: '#6c7580', 
-    marginBottom: 24 
   },
   outlinedCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderWidth: 1.5, borderColor: Colors.light.tint, borderRadius: 20, paddingVertical: 10, paddingHorizontal: 18, marginBottom: 18, alignSelf: 'center' },
   outlinedText: { fontSize: 15, color: Colors.light.tint, fontWeight: '500' },

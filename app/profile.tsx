@@ -18,6 +18,8 @@ import {
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { Colors } from '../constants/Colors';
+import { checkAndUpdateBadges } from '../utils/badges';
+import { getProfileData, isProfileComplete } from '../utils/helpers';
 
 type RelationshipStatus = 'single' | 'in_relationship' | 'married' | 'complicated' | '';
 type Gender = 'male' | 'female' | 'other' | '';
@@ -35,6 +37,7 @@ export default function ProfileScreen() {
   const [gender, setGender] = useState<Gender>('');
   const [orientation, setOrientation] = useState<Orientation>('');
   const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const relationshipOptions = [
     { value: 'single', label: 'Bekarım' },
@@ -87,6 +90,8 @@ export default function ProfileScreen() {
     }
 
     try {
+      setIsLoading(true);
+      
       const data = {
         nickname,
         birthDate,
@@ -99,11 +104,25 @@ export default function ProfileScreen() {
         profileImage
       };
       await AsyncStorage.setItem('userProfile', JSON.stringify(data));
+
+      // Rozetleri kontrol et ve güncelle
+      const profileData = await getProfileData(); // Profil verilerini al
+      
+      await checkAndUpdateBadges('profile', {
+        hasPhoto: !!profileData.profileImage,
+        hasBio: !!(profileData.expectation || profileData.therapyGoals || profileData.previousTherapy),
+        hasGoals: !!profileData.therapyGoals,
+        profileComplete: isProfileComplete(profileData),
+        customizedProfile: !!profileData.profileImage || !!profileData.nickname || !!profileData.birthDate
+      });
+
       Alert.alert('Başarılı', 'Profil kaydedildi.', [
         { text: 'Tamam', onPress: () => router.replace('/') }
       ]);
     } catch (error) {
       Alert.alert('Hata', 'Profil kaydedilemedi.');
+    } finally {
+      setIsLoading(false);
     }
   };
 

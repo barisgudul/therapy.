@@ -6,16 +6,16 @@ import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 // @ts-ignore
 import RNHTMLtoPDF from 'react-native-html-to-pdf';
@@ -23,6 +23,8 @@ import RNHTMLtoPDF from 'react-native-html-to-pdf';
 import { Colors } from '../constants/Colors';
 import { commonStyles } from '../constants/Styles';
 import { generateDetailedMoodSummary } from '../hooks/useGemini';
+import { checkAndUpdateBadges } from '../utils/badges';
+import { getTotalSummaries } from '../utils/helpers';
 
 export default function AISummaryScreen() {
   const router = useRouter();
@@ -125,6 +127,18 @@ export default function AISummaryScreen() {
       const newSummaries = [result.trim(), ...summaries];
       setSummaries(newSummaries);
       await saveSummaries(newSummaries);
+
+      // Rozetleri kontrol et ve güncelle
+      const totalSummaries = await getTotalSummaries(); // Toplam özet sayısını al
+      
+      await checkAndUpdateBadges('ai', {
+        aiSummaries: totalSummaries + 1 // Yeni oluşturulan özeti de ekle
+      });
+      
+      // Farklı özet türleri için ek rozetler
+      await checkAndUpdateBadges('ai', {
+        aiInsights: true
+      });
     } catch (e) {
       const newSummaries = ["AI özet üretilemedi, lütfen tekrar deneyin.", ...summaries];
       setSummaries(newSummaries);

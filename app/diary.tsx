@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { Colors } from '../constants/Colors';
 import { analyzeDiaryEntry } from '../hooks/useGemini';
+import { checkAndUpdateBadges } from '../utils/badges';
 import { deleteDiaryEntry, DiaryEntry, getDiaryEntries, saveDiaryEntry } from '../utils/diaryStorage';
 import { saveSessionData } from '../utils/sessionStorage';
 
@@ -102,6 +103,21 @@ export default function DiaryScreen() {
         summary: analysis.feedback,
         mood: analysis.mood || 'neutral',
         tags: analysis.tags || [],
+      });
+      
+      // Rozet kontrolü
+      // Tüm günlük girdilerini say
+      const diaryEntriesCount = await getDiaryEntries().then(entries => entries.length);
+      
+      // AI destekli günlük rozet kontrolü
+      await checkAndUpdateBadges('diary', {
+        aiDiaryCompleted: diaryEntriesCount,
+        diaryAnalysis: analysisCount
+      });
+      
+      // AI özet rozetlerini kontrol et
+      await checkAndUpdateBadges('ai', {
+        aiSummaries: diaryEntriesCount
       });
       
       await loadDiaryEntries(); // Günlükleri yeniden yükle

@@ -4,18 +4,20 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated,
-  Image,
-  PermissionsAndroid,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  useColorScheme,
+    Animated,
+    Image,
+    PermissionsAndroid,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+    useColorScheme,
 } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { saveToSessionData } from '../../storage/sessionData'; // EKLENDİ
+import { checkAndUpdateBadges } from '../../utils/badges';
+import { getSessionStats } from '../../utils/helpers';
 
 const therapistImages: Record<string, any> = {
   therapist1: require('../../assets/Terapist_1.jpg'),
@@ -146,13 +148,34 @@ export default function VoiceSessionScreen() {
     await stopRecording();
 
     // --- MERKEZİ KAYIT FONKSİYONU ---
-    await saveToSessionData({
-      sessionType: "voice",
-      newMessages: [], // İleride transcript eklersen burada kullanırsın
-    });
+    await saveSession();
 
     router.back();
   };
+
+  async function saveSession() {
+    try {
+      await saveToSessionData({
+        sessionType: "voice",
+        newMessages: [], // İleride transcript eklersen burada kullanırsın
+      });
+
+      // Rozetleri kontrol et ve güncelle
+      const sessionStats = await getSessionStats();
+      
+      await checkAndUpdateBadges('session', {
+        textSessions: sessionStats.textSessions,
+        voiceSessions: sessionStats.voiceSessions,
+        videoSessions: sessionStats.videoSessions,
+        totalSessions: sessionStats.totalSessions,
+        diverseSessionCompleted: sessionStats.textSessions > 0 && 
+                                sessionStats.voiceSessions > 0 && 
+                                sessionStats.videoSessions > 0
+      });
+    } catch (error) {
+      console.error('Seans kaydedilirken hata:', error);
+    }
+  }
 
   return (
     <LinearGradient colors={isDark ? ['#000000', '#1c2e40'] : ['#F9FAFB', '#ECEFF4']} style={styles.container}>

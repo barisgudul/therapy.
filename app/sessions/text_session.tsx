@@ -22,6 +22,8 @@ import { generateTherapistReply } from '../../hooks/useGemini';
 
 // --- EKLENDİ: Merkezi session kaydetme fonksiyonu --- //
 import { saveToSessionData } from '../../storage/sessionData';
+import { checkAndUpdateBadges } from '../../utils/badges';
+import { getSessionStats } from '../../utils/helpers';
 
 // --- DEBUG IMPORT: Gerçekten var mı kontrolü --- //
 import * as sessionData from '../../storage/sessionData';
@@ -101,6 +103,16 @@ export default function TextSessionScreen() {
           sessionType: "text",
           newMessages: latestMessages.current,
         });
+        
+        // Seans tamamlandığında rozet kontrolü
+        const stats = await getSessionStats();
+        await checkAndUpdateBadges('session', {
+          textSessions: stats.textSessions,
+          videoSessions: stats.videoSessions,
+          voiceSessions: stats.voiceSessions,
+          totalSessions: stats.totalSessions,
+          diverseSessionCompleted: stats.textSessions > 0 && stats.videoSessions > 0 && stats.voiceSessions > 0
+        });
       } else {
         console.error("saveToSessionData fonksiyonu YOK veya geçersiz!");
       }
@@ -163,9 +175,29 @@ export default function TextSessionScreen() {
   }
 };
 
+  async function saveSession() {
+    try {
+      await saveToSessionData({
+        sessionType: "text",
+        newMessages: messages,
+      });
 
+      // Rozetleri kontrol et ve güncelle
+      const stats = await getSessionStats();
+      
+      await checkAndUpdateBadges('session', {
+        textSessions: stats.textSessions,
+        voiceSessions: stats.voiceSessions,
+        videoSessions: stats.videoSessions,
+        totalSessions: stats.totalSessions,
+        diverseSessionCompleted: stats.textSessions > 0 && stats.voiceSessions > 0 && stats.videoSessions > 0
+      });
 
-
+      router.back();
+    } catch (error) {
+      console.error('Seans kaydedilirken hata:', error);
+    }
+  }
 
   const handleBack = () => {
     if (messages.length > 0 && typeof saveToSessionData === "function") {

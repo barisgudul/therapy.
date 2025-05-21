@@ -5,19 +5,21 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Dimensions,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Dimensions,
+    Modal,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import * as Animatable from 'react-native-animatable';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { Colors } from '../constants/Colors';
 import { generateDailyReflectionResponse } from '../hooks/useGemini'; // <-- Buraya dikkat!
+import { checkAndUpdateBadges } from '../utils/badges';
+import { calculateStreak, getTotalEntries } from '../utils/helpers';
 
 const moods = ['😊', '😔', '😡', '😟', '😍', '😴', '😐', '🤯'];
 const moodLabels: Record<string, string> = {
@@ -102,7 +104,7 @@ export default function DailyWriteScreen() {
   }
 
   // Kaydet butonuna basınca
-  const saveSession = async () => {
+  async function saveSession() {
     if (!note || !selectedMood || saving) return;
     setSaving(true);
 
@@ -112,7 +114,6 @@ export default function DailyWriteScreen() {
 
     setFeedbackVisible(true);
 
-    // **GEMINI API ÇAĞRISI BURADA**
     try {
       const personalized = await generateDailyReflectionResponse(note, selectedMood);
       setAiMessage(personalized);
@@ -132,12 +133,43 @@ export default function DailyWriteScreen() {
       const newEntry = { type: 'daily_write', time: now };
       await appendActivity(activityKey, newEntry);
 
+      // Rozetleri kontrol et ve güncelle
+      const streak = await calculateStreak(); // Mevcut streak'i hesapla
+      const totalEntries = await getTotalEntries(); // Toplam günlük sayısını al
+      
+      // Daily_write rozet kontrollerini ekle
+      await checkAndUpdateBadges('daily', {
+        totalEntries: totalEntries,
+        streak: streak.currentStreak
+      });
+
+      // Daily writer rozetleri için özel kontrol
+      if (totalEntries >= 3) {
+        await checkAndUpdateBadges('daily', {
+          totalEntries: totalEntries,
+          dailyWriterNovice: true
+        });
+      }
+      
+      if (totalEntries >= 15) {
+        await checkAndUpdateBadges('daily', {
+          totalEntries: totalEntries,
+          dailyWriterExpert: true
+        });
+      }
+
+      // Streak rozetlerini kontrol et
+      await checkAndUpdateBadges('streak', {
+        streak: streak.currentStreak,
+        longestStreak: streak.longestStreak
+      });
+
       setRefresh(Date.now());
     } catch (err) {
       setAiMessage('Sunucu hatası, lütfen tekrar deneyin.');
     }
     setSaving(false);
-  };
+  }
 
   const closeFeedback = () => {
     setFeedbackVisible(false);
