@@ -106,15 +106,13 @@ const badgeRequirements: Record<string, string> = {
   'session_anniversary': 'Bir yıl boyunca düzenli seanslar yap (toplam 48 seans)',
   
   // AI Rozetleri
-  'first_ai': 'İlk yapay zeka analizini al',
-  'ai_supporter': 'En az 10 yapay zeka özeti al',
-  'ai_master': 'En az 25 yapay zeka özeti al',
-  'ai_insights': 'En az 5 farklı duygu durumu için yapay zeka özeti al',
+  'first_ai': 'İlk AI özetini al',
+  'ai_supporter': '5 AI özeti al',
+  'ai_master': '25 AI özeti al',
+  'ai_insights': '5 farklı duygu durumu için AI özeti al',
   'ai_prompt_master': 'Yapay zekaya 15+ farklı soru sor',
   'ai_data_analyzer': 'Yapay zeka ile 3 aylık veri analizini tamamla',
   'ai_creative_collaborator': 'Yapay zeka ile yaratıcı bir proje oluştur',
-  
-  // Günlük/Diary Rozetleri
   'ai_diary_starter': 'İlk yapay zeka destekli günlük yazımını tamamla',
   'diary_analyzer': 'En az 5 günlüğünü yapay zeka ile analiz et',
   'diary_connoisseur': 'En az 1000 kelimelik bir günlük girişi yaz',

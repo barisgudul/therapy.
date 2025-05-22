@@ -181,20 +181,40 @@ export async function generateDetailedMoodSummary(entries: any[], days: number) 
   const userDesc = makeUserDesc(userProfile);
 
   const prompt = `
-${userDesc ? userDesc + '\n' : ''}
-Sen gelişmiş, empatik ve uzman bir yapay zekâ psikoloji analistisin.
-Aşağıda kullanıcının son ${days} gün içinde tuttuğu günlük, ruh hali ve terapi verileri listeleniyor:
+Kullanıcının son ${days} günlük duygu durumu analizi için aşağıdaki yapıda detaylı ancak özlü bir rapor oluştur:
+
+1. Genel Bakış
+• Haftalık duygu dağılımı (ana duyguların yüzdeli dağılımı)
+• Öne çıkan pozitif/negatif eğilimler
+• Haftanın en belirgin 3 özelliği
+
+2. Duygusal Dalgalanmalar
+• Gün içi değişimler (sabah-akşam karşılaştırması)
+• Haftalık trend (hafta başı vs hafta sonu)
+• Duygu yoğunluğu gradyanı (1-10 arası skala tahmini)
+
+3. Tetikleyici Analizi
+• En sık tekrarlanan 3 olumsuz tetikleyici
+• Etkili başa çıkma mekanizmaları
+• Kaçırılan fırsatlar (gözden kaçan pozitif anlar)
+
+4. Kişiye Özel Tavsiyeler
+• Profil verilerine göre (${userDesc}) uyarlanmış 3 somut adım
+• Haftaya özel mini hedefler
+• Acil durum stratejisi (kriz anları için)
+
+Teknik Talimatlar:
+1. Rapor maksimum 500 kelime olsun
+2. Her bölüm 3-4 maddeli paragraf şeklinde
+3. Sayısal verileri yuvarlayarak yaz (%Yüzde, X/Y oran gibi)
+4. Günlük konuşma dili kullan (akademik jargon yok)
+5. Başlıklarda markdown kullanma
+6. Pozitif vurguyu koru (eleştirel değil yapıcı olsun)
+7. Eğer kullanıcı profili varsa, yanıtında kullanıcının ismiyle hitap et.
+8. Yanıtında kesinlikle markdown, yıldız, tire, köşeli parantez, madde işareti veya herhangi bir özel karakter kullanma. Sadece düz metin ve başlıklar kullan.
+
+Veriler:
 ${JSON.stringify(entries, null, 2)}
-
-1. Bu verileri dikkatlice analiz et.
-2. Kullanıcının duygusal eğilimlerini, ruh halindeki değişimleri, öne çıkan stres, kaygı veya pozitif gelişmeleri belirt.
-3. Varsa tekrar eden temaları/duyguları vurgula.
-4. Duygusal dayanıklılığını ve baş etme becerilerini kısaca değerlendir.
-5. Analizinin sonunda ona kişisel ve motive edici bir kapanış cümlesi yaz.
-
-Yanıtın açık, insancıl, empatik ve doğal Türkçeyle olsun.  
-Kullanıcı profili yoksa anonim olarak konuş ve isimsiz hitap et.  
-Gereksiz tekrar veya robotik cümlelerden kaçın.  
 `.trim();
 
   return await sendToGemini(prompt);

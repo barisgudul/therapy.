@@ -169,7 +169,7 @@ export async function getSessionStats(): Promise<SessionStats> {
 // AI özet yardımcıları
 export async function getTotalSummaries(): Promise<number> {
   try {
-    const summaries = await AsyncStorage.getItem('ai_summaries');
+    const summaries = await AsyncStorage.getItem('ai-summaries');
     return summaries ? JSON.parse(summaries).length : 0;
   } catch (error) {
     console.error('Toplam özet sayısı alınırken hata:', error);
