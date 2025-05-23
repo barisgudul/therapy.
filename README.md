@@ -1,50 +1,86 @@
-# Welcome to your Expo app 👋
+# TherapyApp - Digital Therapy Assistant 🤖
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+This project is an AI-powered digital therapy assistant application. It provides users with daily therapy sessions, mood tracking, and personalized support.
 
-## Get started
+## Features ✨
 
-1. Install dependencies
+- 🤖 AI-powered therapy sessions
+- 📝 Digital journaling
+- 📊 Mood analysis and tracking
+- 👥 Different therapy characters
+- 🎯 Personalized goals and achievements
+- 📱 Multi-platform support (iOS, Android)
 
+## Getting Started 🚀
+
+### Prerequisites
+
+- Node.js (v14 or higher)
+- npm or yarn
+- Expo CLI
+- iOS Simulator (for iOS) or Android Emulator (for Android)
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/therapy-app.git
+   cd therapy-app
+   ```
+
+2. Install dependencies:
    ```bash
    npm install
    ```
 
-2. Start the app
+3. Set up environment variables:
+   - Copy `.env.example` to `.env`
+   - Add your Gemini API key to the `.env` file:
+     ```
+     GEMINI_API_KEY=your_api_key_here
+     ```
 
+4. Start the application:
    ```bash
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+## Development 🛠️
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### Project Structure
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+therapy-app/
+├── app/                 # Main application code
+├── components/          # Reusable components
+├── hooks/              # Custom React hooks
+├── utils/              # Helper functions
+├── constants/          # Constants
+└── assets/             # Images and other static files
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Technologies Used
 
-## Learn more
+- React Native
+- Expo
+- TypeScript
+- Gemini AI API
+- AsyncStorage
 
-To learn more about developing your project with Expo, look at the following resources:
+## Contributing 🤝
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## Join the community
+## License 📄
 
-Join our community of developers creating universal apps.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Contact 📧
+
+Barış Güdül - [@barisgudul](https://twitter.com/barisgudul)
+
+Project Link: [https://github.com/barisgudul/therapy-app](https://github.com/barisgudul/therapy-app)
