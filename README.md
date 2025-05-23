@@ -81,6 +81,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contact 📧
 
-Barış Güdül - [@barisgudul](https://twitter.com/barisgudul)
+Mehmet Barış Güdül
+
+Email: mehmetbarisgudul@gmail.com  
+GitHub: [github.com/barisgudul](https://github.com/barisgudul)  
+LinkedIn: [linkedin.com/in/mehmetbarisgudul](https://linkedin.com/in/mehmetbarisgudul)
 
 Project Link: [https://github.com/barisgudul/therapy-app](https://github.com/barisgudul/therapy-app)
