@@ -20,31 +20,6 @@ This project is an AI-powered digital therapy assistant application. It provides
 - Expo CLI
 - iOS Simulator (for iOS) or Android Emulator (for Android)
 
-### Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/therapy-app.git
-   cd therapy-app
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Set up environment variables:
-   - Copy `.env.example` to `.env`
-   - Add your Gemini API key to the `.env` file:
-     ```
-     GEMINI_API_KEY=your_api_key_here
-     ```
-
-4. Start the application:
-   ```bash
-   npx expo start
-   ```
-
 ## Development 🛠️
 
 ### Project Structure
@@ -67,17 +42,9 @@ therapy-app/
 - Gemini AI API
 - AsyncStorage
 
-## Contributing 🤝
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'feat: Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
 ## License 📄
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is proprietary software. All rights reserved. Unauthorized copying, distribution, or use is strictly prohibited. See the [LICENSE](LICENSE) file for details.
 
 ## Contact 📧
 
