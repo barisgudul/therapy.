@@ -1,12 +1,11 @@
+import { GEMINI_API_KEY } from '@env';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const API_KEY = "AIzaSyAiJDH5pvsNQFqGXlu_5qNH6GuoIRlW4A0";
 
 // ---- Gemini API Ortak Fonksiyon ----
 export const sendToGemini = async (text: string): Promise<string> => {
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -230,7 +229,7 @@ export interface DiaryAnalysis {
 
 export const analyzeDiaryEntry = async (text: string): Promise<DiaryAnalysis> => {
   try {
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=YOUR_API_KEY', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
