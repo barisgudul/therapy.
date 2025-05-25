@@ -229,7 +229,7 @@ export interface DiaryAnalysis {
 
 export const analyzeDiaryEntry = async (text: string): Promise<DiaryAnalysis> => {
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -246,7 +246,7 @@ export const analyzeDiaryEntry = async (text: string): Promise<DiaryAnalysis> =>
             Günlük yazısı:
             ${text}
 
-            Yanıtını şu formatta ver:
+            Lütfen yanıtını tam olarak şu JSON formatında ver, başka hiçbir metin ekleme:
             {
               "mood": "duygu durumu",
               "tags": ["etiket1", "etiket2", "etiket3"],
@@ -259,14 +259,35 @@ export const analyzeDiaryEntry = async (text: string): Promise<DiaryAnalysis> =>
     });
 
     const data = await response.json();
-    const analysis = JSON.parse(data.candidates[0].content.parts[0].text);
+    console.log("Gemini raw response:", data);
 
-    return {
-      feedback: analysis.feedback,
-      questions: analysis.questions,
-      mood: analysis.mood,
-      tags: analysis.tags
-    };
+    // API yanıtını güvenli bir şekilde işle
+    const responseText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!responseText) {
+      throw new Error("API yanıtı boş geldi");
+    }
+
+    // Yanıt metnini temizle ve JSON olarak parse et
+    const cleanedText = responseText.trim().replace(/^```json\n?|\n?```$/g, '');
+    try {
+      const analysis = JSON.parse(cleanedText);
+      return {
+        feedback: analysis.feedback || "Geri bildirim alınamadı",
+        questions: analysis.questions || [],
+        mood: analysis.mood || "neutral",
+        tags: analysis.tags || []
+      };
+    } catch (parseError) {
+      console.error("JSON parse hatası:", parseError);
+      console.error("Temizlenmiş yanıt:", cleanedText);
+      // API yanıtı JSON formatında değilse, varsayılan değerler döndür
+      return {
+        feedback: "Üzgünüm, şu anda analiz yapamıyorum. Lütfen daha sonra tekrar deneyin.",
+        questions: [],
+        mood: "neutral",
+        tags: []
+      };
+    }
   } catch (error) {
     console.error('AI analiz hatası:', error);
     return {
