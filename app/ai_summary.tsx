@@ -18,12 +18,15 @@ import {
   View
 } from 'react-native';
 // @ts-ignore
+import { Dimensions } from 'react-native';
+import { PieChart } from 'react-native-chart-kit';
 import RNHTMLtoPDF from 'react-native-html-to-pdf';
 
 import { Colors } from '../constants/Colors';
 import { commonStyles } from '../constants/Styles';
 import { generateDetailedMoodSummary } from '../hooks/useGemini';
 import { checkAndUpdateBadges } from '../utils/badges';
+import { statisticsManager } from '../utils/statisticsManager';
 
 export default function AISummaryScreen() {
   const router = useRouter();
@@ -34,6 +37,10 @@ export default function AISummaryScreen() {
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [activeSummary, setActiveSummary] = useState<string | null>(null);
+  const [weeklyMood, setWeeklyMood] = useState<any[]>([]);
+  const [moodDist, setMoodDist] = useState<{ name: string; count: number; color: string }[]>([]);
+  const [weeklyEntries, setWeeklyEntries] = useState<any[]>([]);
+  const chartWidth = Dimensions.get('window').width - 44;
 
   // Kayıtlı özetleri yükle
   useEffect(() => {
@@ -90,6 +97,43 @@ export default function AISummaryScreen() {
     }
   };
 
+  // Grafik verilerini güncelleyen fonksiyon
+  const refreshStats = async () => {
+    // Haftalık mood trendi
+    const moodTrend = await statisticsManager.getWeeklyMoodTrend();
+    setWeeklyMood(moodTrend);
+    // Mood dağılımı
+    const dist = await statisticsManager.getMoodDistribution();
+    // Şık, zarif ve modern pastel renk paleti (beyaz ve çok açık renk yok)
+    const palette = [
+      '#6C63FF', // pastel mor
+      '#FF6F91', // zarif pembe
+      '#FF9671', // pastel turuncu
+      '#FFC75F', // soft sarı
+      '#0089BA', // zarif mavi
+      '#845EC2', // lila
+      '#2C73D2', // koyu mavi
+      '#008E9B', // turkuaz
+      '#B39CD0', // pastel lila
+      '#F9F871', // limon sarısı (çok açık değil)
+      '#F76E6C', // zarif kırmızı
+      '#A3C9A8', // pastel yeşil
+      '#C34A36', // sıcak kiremit
+      '#F8B195', // soft şeftali
+      '#355C7D', // koyu pastel mavi
+    ];
+    setMoodDist(Object.entries(dist).map(([name, count], i) => ({ name, count, color: palette[i % palette.length] }})));
+    // Haftalık giriş
+    const weekStats = await statisticsManager.getWeeklyStats();
+    setWeeklyEntries(weekStats);
+  };
+
+  // İlk yüklemede grafik verilerini getir
+  useEffect(() => {
+    refreshStats();
+  }, []);
+
+  // Özetleri getir
   const fetchSummary = async () => {
     if (loading) return;
     setLoading(true);
@@ -102,14 +146,25 @@ export default function AISummaryScreen() {
       .filter(k => k.startsWith('session-'))
       .sort((a, b) => b.localeCompare(a)); // Yeni tarihler başta
 
-    // Seçili gün kadar en güncel kayıtları al
-    const selectedSessionKeys = sessionKeys.slice(0, selectedDays);
+    // mood- ile başlayanları da bul ve tarihe göre yeni > eski sırala
+    const moodKeys = keys
+      .filter(k => k.startsWith('mood-'))
+      .sort((a, b) => b.localeCompare(a));
+
+    // Seçili gün kadar en güncel kayıtları al (session ve mood birlikte)
+    const allKeys = [...sessionKeys, ...moodKeys]
+      .sort((a, b) => b.localeCompare(a))
+      .slice(0, selectedDays);
 
     const entries: any[] = [];
-    for (const key of selectedSessionKeys) {
+    for (const key of allKeys) {
       const val = await AsyncStorage.getItem(key);
       if (val) {
-        entries.push({ date: key.replace('session-', ''), ...JSON.parse(val) });
+        if (key.startsWith('session-')) {
+          entries.push({ date: key.replace('session-', ''), ...JSON.parse(val) });
+        } else if (key.startsWith('mood-')) {
+          entries.push({ date: key.replace('mood-', ''), ...JSON.parse(val) });
+        }
       }
     }
 
@@ -127,13 +182,27 @@ export default function AISummaryScreen() {
       setSummaries(newSummaries);
       await saveSummaries(newSummaries);
 
+      // --- İstatistikleri güncelle (her özet sonrası) ---
+      for (const entry of entries) {
+        if (entry.mood) {
+          await statisticsManager.updateStatistics({ text: entry.reflection || entry.content || '', mood: entry.mood, date: entry.date, source: 'ai' });
+        } else {
+          console.log('Atlandı (mood yok):', entry);
+        }
+      }
+
+      // --- Grafik verilerini güncelle ---
+      await refreshStats();
+
+      // Otomatik modal aç: yeni özetin içeriğini göster
+      setActiveSummary(result.trim());
+      setModalVisible(true);
+
       // Rozetleri kontrol et ve güncelle
       const totalSummaries = newSummaries.length; // Yeni toplam sayıyı al
-      
       await checkAndUpdateBadges('ai', {
         aiSummaries: totalSummaries // Yeni toplam sayıyı kullan
       });
-      
       // Farklı özet türleri için ek rozetler
       await checkAndUpdateBadges('ai', {
         aiInsights: true
@@ -255,54 +324,130 @@ export default function AISummaryScreen() {
     </View>
   ) : null;
 
+  // --- Grafik ve istatistik kutusu ---
+  const StatsHeader = (
+    <View style={{ backgroundColor: '#fff', borderRadius: 18, padding: 14, marginBottom: 18, shadowColor: '#000', shadowOpacity: 0.03, shadowOffset: { width: 0, height: 2 }, shadowRadius: 8, elevation: 1, alignItems: 'center' }}>
+      <Text style={{ fontWeight: '600', fontSize: 15, color: Colors.light.tint, marginBottom: 8, textAlign: 'center', letterSpacing: -0.2 }}>Mood Dağılımı</Text>
+      {moodDist.length > 0 ? (
+        <View style={{ alignItems: 'center', justifyContent: 'center', width: '100%', marginBottom: 10 }}>
+          <PieChart
+            data={moodDist.map(m => ({
+              name: m.name,
+              population: m.count,
+              color: m.color,
+              legendFontColor: '#6c7580',
+              legendFontSize: 12,
+            }))}
+            width={chartWidth}
+            height={160}
+            chartConfig={{ color: () => Colors.light.tint }}
+            accessor={'population'}
+            backgroundColor={'transparent'}
+            paddingLeft={String((chartWidth - 160) / 2)}
+            absolute
+            hasLegend={false}
+            center={[0, 0]}
+            style={{ marginBottom: 0, alignSelf: 'center' }}
+          />
+          {/* Donut efekti için ortada beyaz bir daire */}
+          <View style={{ position: 'absolute', top: 80 - 48, left: '50%', marginLeft: -48, width: 96, height: 96, borderRadius: 48, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', elevation: 2 }}>
+            <Text style={{ fontWeight: '700', fontSize: 18, color: Colors.light.tint }}>{moodDist.reduce((a, b) => a + b.count, 0)}</Text>
+            <Text style={{ fontSize: 12, color: '#6c7580' }}>Kayıt</Text>
+          </View>
+          {/* Yüzde etiketleri */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 12 }}>
+            {moodDist.map(m => {
+              const total = moodDist.reduce((a, b) => a + b.count, 0);
+              const percent = total ? Math.round((m.count / total) * 100) : 0;
+              return (
+                <View key={m.name} style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 8, marginVertical: 2 }}>
+                  <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: m.color, marginRight: 6 }} />
+                  <Text style={{ fontSize: 13, color: '#6c7580', fontWeight: '600' }}>{m.name}</Text>
+                  <Text style={{ fontSize: 13, color: '#6c7580', marginLeft: 3 }}>{percent}%</Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      ) : (
+        <Text style={{ color: '#A0A0A0', fontSize: 13, textAlign: 'center', marginBottom: 10 }}>Yeterli veri yok</Text>
+      )}
+    </View>
+  );
+
+  // İlk yüklemede tüm mood- kayıtlarını istatistiklere ekle (bir defaya mahsus)
+  useEffect(() => {
+    (async () => {
+      const alreadyInitialized = await AsyncStorage.getItem('mood-stats-initialized');
+      if (alreadyInitialized) return;
+      const keys = await AsyncStorage.getAllKeys();
+      const moodKeys = keys.filter(k => k.startsWith('mood-'));
+      for (const key of moodKeys) {
+        const val = await AsyncStorage.getItem(key);
+        if (val) {
+          const parsed = JSON.parse(val);
+          if (parsed.mood) {
+            const date = key.replace('mood-', '');
+            await statisticsManager.updateStatistics({ text: parsed.reflection || '', mood: parsed.mood, date, source: 'ai' });
+          }
+        }
+      }
+      await AsyncStorage.setItem('mood-stats-initialized', '1');
+      // Grafik verilerini güncelle (refreshStats fonksiyonu ile)
+      refreshStats();
+    })();
+  }, []);
+
   return (
     <LinearGradient colors={['#FFFFFF', '#F4F7FC']} style={commonStyles.container}>
       <TouchableOpacity onPress={() => router.back()} style={commonStyles.backButton}>
         <Ionicons name="chevron-back" size={26} color={Colors.light.tint} />
       </TouchableOpacity>
-
       <Text style={commonStyles.brand}>therapy<Text style={commonStyles.brandDot}>.</Text></Text>
       <Text style={commonStyles.title}>AI Ruh Hâli Analizi</Text>
       <Text style={commonStyles.subtitle}>Duygu geçmişini analizle keşfet.</Text>
-
-      <View style={commonStyles.contentContainer}>
-        <View style={commonStyles.controlsBox}>
-          <Text style={commonStyles.inputLabel}>Kaç günlük veriyi analiz edelim?</Text>
-          <Slider
-            minimumValue={1}
-            maximumValue={maxDays}
-            step={1}
-            value={selectedDays}
-            onValueChange={v => setSelectedDays(Array.isArray(v) ? v[0] : v)}
-            containerStyle={styles.sliderContainer}
-            trackStyle={styles.sliderTrack}
-            thumbStyle={styles.sliderThumb}
-            minimumTrackTintColor={Colors.light.tint}
-            renderThumbComponent={() => (
-              <View style={styles.thumbInner}><Text style={styles.thumbText}>{selectedDays}</Text></View>
-            )}
-          />
-          <TouchableOpacity style={[commonStyles.button, loading && { opacity: 0.6 }]} disabled={loading} onPress={fetchSummary}>
-            <Text style={commonStyles.buttonText}>Analiz Oluştur</Text>
-          </TouchableOpacity>
-        </View>
-
-        {summaries.length === 0 && !loading ? (
-          <View style={commonStyles.placeholderContainer}>
-            <Ionicons name="information-circle-outline" size={22} color="#9CA3AF" style={{ marginBottom: 6 }} />
-            <Text style={commonStyles.placeholderText}>Henüz analiz oluşturulmadı</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={summaries}
-            renderItem={({ item, index }) => <SummaryCard text={item} index={index} />}
-            keyExtractor={(_, i) => i.toString()}
-            contentContainerStyle={commonStyles.listContainer}
-            ListHeaderComponent={loadingHeader}
-          />
-        )}
-      </View>
-
+      <FlatList
+        data={summaries}
+        renderItem={({ item, index }) => <SummaryCard text={item} index={index} />}
+        keyExtractor={(_, i) => i.toString()}
+        contentContainerStyle={{ paddingBottom: 32 }}
+        ListHeaderComponent={
+          <>
+            {StatsHeader}
+            <View style={commonStyles.contentContainer}>
+              <View style={commonStyles.controlsBox}>
+                <Text style={commonStyles.inputLabel}>Kaç günlük veriyi analiz edelim?</Text>
+                <Slider
+                  minimumValue={1}
+                  maximumValue={maxDays}
+                  step={1}
+                  value={selectedDays}
+                  onValueChange={v => setSelectedDays(Array.isArray(v) ? v[0] : v)}
+                  containerStyle={styles.sliderContainer}
+                  trackStyle={styles.sliderTrack}
+                  thumbStyle={styles.sliderThumb}
+                  minimumTrackTintColor={Colors.light.tint}
+                  renderThumbComponent={() => (
+                    <View style={styles.thumbInner}><Text style={styles.thumbText}>{selectedDays}</Text></View>
+                  )}
+                />
+                <TouchableOpacity style={[commonStyles.button, loading && { opacity: 0.6 }]} disabled={loading} onPress={fetchSummary}>
+                  <Text style={commonStyles.buttonText}>Analiz Oluştur</Text>
+                </TouchableOpacity>
+              </View>
+              {loading && loadingHeader}
+            </View>
+          </>
+        }
+        ListEmptyComponent={
+          !loading ? (
+            <View style={commonStyles.placeholderContainer}>
+              <Ionicons name="information-circle-outline" size={22} color="#9CA3AF" style={{ marginBottom: 6 }} />
+              <Text style={commonStyles.placeholderText}>Henüz analiz oluşturulmadı</Text>
+            </View>
+          ) : null
+        }
+      />
       <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
         <View style={commonStyles.modalContainer}>
           <View style={commonStyles.modalContent}>

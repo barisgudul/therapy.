@@ -5,14 +5,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-    Dimensions,
-    Modal,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Dimensions,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import * as Animatable from 'react-native-animatable';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
@@ -20,6 +20,7 @@ import { Colors } from '../constants/Colors';
 import { generateDailyReflectionResponse } from '../hooks/useGemini'; // <-- Buraya dikkat!
 import { checkAndUpdateBadges } from '../utils/badges';
 import { calculateStreak, getTotalEntries } from '../utils/helpers';
+import { statisticsManager } from '../utils/statisticsManager';
 
 const moods = ['😊', '😔', '😡', '😟', '😍', '😴', '😐', '🤯'];
 const moodLabels: Record<string, string> = {
@@ -133,16 +134,19 @@ export default function DailyWriteScreen() {
       const newEntry = { type: 'daily_write', time: now };
       await appendActivity(activityKey, newEntry);
 
+      // İstatistikleri ANINDA güncelle (AI Analiz için)
+      await statisticsManager.updateStatistics({ text: note, mood: selectedMood, date: today, source: 'daily_write' });
+      // Her gün için bir kez çalışsın diye flag'i sıfırla
+      await AsyncStorage.removeItem('mood-stats-initialized');
+
       // Rozetleri kontrol et ve güncelle
       const streak = await calculateStreak(); // Mevcut streak'i hesapla
       const totalEntries = await getTotalEntries(); // Toplam günlük sayısını al
-      
       // Daily_write rozet kontrollerini ekle
       await checkAndUpdateBadges('daily', {
         totalEntries: totalEntries,
         streak: streak.currentStreak
       });
-
       // Daily writer rozetleri için özel kontrol
       if (totalEntries >= 3) {
         await checkAndUpdateBadges('daily', {
@@ -150,20 +154,12 @@ export default function DailyWriteScreen() {
           dailyWriterNovice: true
         });
       }
-      
       if (totalEntries >= 15) {
         await checkAndUpdateBadges('daily', {
           totalEntries: totalEntries,
           dailyWriterExpert: true
         });
       }
-
-      // Streak rozetlerini kontrol et
-      await checkAndUpdateBadges('streak', {
-        streak: streak.currentStreak,
-        longestStreak: streak.longestStreak
-      });
-
       setRefresh(Date.now());
     } catch (err) {
       setAiMessage('Sunucu hatası, lütfen tekrar deneyin.');
