@@ -103,7 +103,7 @@ export default function HomeScreen() {
               body: 'Bir süredir giriş yapmadın. Bugün günlüğünü yazmak ister misin?',
               data: { route: '/daily_write' },
             },
-            trigger: { seconds, repeats: false, type: undefined },
+            trigger: { seconds, repeats: false } as any,
           });
         }
       }
@@ -153,8 +153,7 @@ export default function HomeScreen() {
       setModalVisible(true);
       animateBg(true);
     } else {
-      // ilk tıklama → tarihi hemen kaydet
-      await AsyncStorage.setItem('todayDate', todayISO());
+      // ilk tıklama → sadece yönlendir, todayDate'i burada kaydetme
       setAiMessage(null);
       router.push('/daily_write');
     }
@@ -169,15 +168,11 @@ export default function HomeScreen() {
   /* DEMO reset (gelistirmede) */
   const clearDemoData = async () => {
     const keys = await AsyncStorage.getAllKeys();
-    const toRemove = keys.filter(
-      k =>
-        k.startsWith('mood-') ||
-        ['todayDate', 'lastReflectionAt', 'todayMessage', 'userProfile', 'nickname'].includes(k)
-    );
-    await AsyncStorage.multiRemove(toRemove);
+    // Tüm verileri sil!
+    await AsyncStorage.multiRemove(keys);
     setAiMessage(null);
     setRefreshStreak(Date.now());
-    Alert.alert('Demo verisi temizlendi.');
+    Alert.alert('Tüm veriler sıfırlandı!');
   };
 
   const resetBadges = async () => {
@@ -188,6 +183,59 @@ export default function HomeScreen() {
       console.error('Rozet sıfırlama hatası:', error);
       Alert.alert('Hata', 'Rozetler sıfırlanırken bir hata oluştu.');
     }
+  };
+
+  /* Bugünkü Girişi Sıfırla (debug) */
+  const clearTodayDate = async () => {
+    await AsyncStorage.removeItem('todayDate');
+    setAiMessage(null);
+    setRefreshStreak(Date.now());
+    Alert.alert('Bugünkü giriş sıfırlandı. Artık günlük ekranına girebilirsiniz.');
+  };
+
+  /* Yalnızca Gerçek Günlük Kayıtlarını Koru (debug) */
+  const keepOnlyRealDailyEntries = async () => {
+    // 1. Tüm mood- kayıtlarını al
+    const keys = await AsyncStorage.getAllKeys();
+    const moodKeys = keys.filter(k => k.startsWith('mood-'));
+    let kept = 0, removed = 0;
+    let realEntries = [];
+    for (const key of moodKeys) {
+      const value = await AsyncStorage.getItem(key);
+      try {
+        const obj = JSON.parse(value || '{}');
+        // Sadece daily_write.tsx'den gelenler: source === 'daily_write'
+        if (obj.source !== 'daily_write') {
+          await AsyncStorage.removeItem(key);
+          removed++;
+        } else {
+          kept++;
+          realEntries.push({
+            text: obj.reflection || '',
+            mood: obj.mood,
+            date: key.replace('mood-', ''),
+            source: 'daily_write',
+          });
+        }
+      } catch {
+        // Hatalı kayıtları da sil
+        await AsyncStorage.removeItem(key);
+        removed++;
+      }
+    }
+    // 2. İstatistikleri ve işlenmiş mood tarihlerini sıfırla
+    await AsyncStorage.removeItem('moodStats');
+    await AsyncStorage.removeItem('moodDist');
+    await AsyncStorage.removeItem('processedMoodDates');
+    await AsyncStorage.removeItem('user_statistics');
+    await AsyncStorage.removeItem('mood-stats-processed');
+    // 3. Kalan gerçek günlükleri tekrar istatistiklere ekle
+    const statisticsManager = require('../utils/statisticsManager').statisticsManager;
+    for (const entry of realEntries) {
+      await statisticsManager.updateStatistics(entry);
+    }
+    Alert.alert('Temizlendi', `${kept} gerçek günlük kaydı kaldı, ${removed} yapay/analiz kaydı silindi. İstatistikler yeniden oluşturuldu.`);
+    setRefreshStreak(Date.now());
   };
 
   /* ------------- UI ------------- */
@@ -245,34 +293,15 @@ export default function HomeScreen() {
 
       {/* DEMO RESET ve DEBUG only dev */}
       {__DEV__ && (
-        <View style={styles.debugContainer}>
-          <TouchableOpacity style={styles.resetBtn} onPress={clearDemoData}>
-            <Text style={styles.resetTxt}>Demo Sıfırla</Text>
+        <View style={styles.debugBottomContainer}>
+          <TouchableOpacity style={[styles.debugBtnWide, { backgroundColor: '#ff6b6b' }]} onPress={resetBadges}>
+            <Text style={{ color: '#fff' }}>Rozetleri Sıfırla</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.resetBtn, { backgroundColor: '#14b8a6' }]}
-            onPress={showAllActivities}
-          >
-            <Text style={[styles.resetTxt, { color: '#fff' }]}>Aktiviteleri Yazdır</Text>
+          <TouchableOpacity style={[styles.debugBtnWide, { backgroundColor: '#888' }]} onPress={clearDemoData}>
+            <Text style={{ color: '#fff' }}>Demo verilerini tamamen sıfırla</Text>
           </TouchableOpacity>
         </View>
       )}
-
-      {/* Debug butonu - TESTİ BİTİNCE KALDIR */}
-      <TouchableOpacity 
-        style={{
-          position: 'absolute',
-          bottom: 20,
-          right: 20,
-          backgroundColor: '#ff6b6b',
-          padding: 10,
-          borderRadius: 8,
-          zIndex: 100
-        }}
-        onPress={resetBadges}
-      >
-        <Text style={{ color: '#fff' }}>Rozetleri Sıfırla</Text>
-      </TouchableOpacity>
 
       {modalVisible && <BlurView intensity={60} tint="default" style={StyleSheet.absoluteFill} />}
 
@@ -352,12 +381,84 @@ const styles = StyleSheet.create({
     marginTop: 16,
     gap: 12,
   },
-  debugContainer: {
+  debugContainerTop: {
     position: 'absolute',
-    bottom: 40,
-    right: 24,
+    top: 12,
+    right: 10,
     flexDirection: 'row',
-    gap: 12,
+    gap: 6,
+    zIndex: 1000,
+    alignItems: 'center',
+  },
+  debugContainerPhoto: {
+    position: 'absolute',
+    top: 170,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+    zIndex: 1000,
+    alignItems: 'center',
+  },
+  debugContainerPhotoColumn: {
+    position: 'absolute',
+    top: 170,
+    left: 0,
+    right: 0,
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    gap: 8,
+    zIndex: 1000,
+  },
+  debugBottomContainer: {
+    position: 'absolute',
+    bottom: 24,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  debugBtnMini: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e11d48',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 16,
+    marginLeft: 0,
+    marginRight: 0,
+    minWidth: 0,
+    minHeight: 0,
+    height: 28,
+  },
+  debugBtnWide: {
+    width: '90%',
+    alignSelf: 'center',
+    paddingVertical: 13,
+    borderRadius: 12,
+    marginTop: 8,
+    marginBottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2,
+  },
+  debugBtnTxt: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 3,
+    marginRight: 1,
+    padding: 0,
+  },
+  debugBtnWideTxt: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+    marginLeft: 5,
+    marginRight: 2,
+    padding: 0,
   },
   brand: { textAlign: 'center', fontSize: 22, fontWeight: '600', color: Colors.light.tint, textTransform: 'lowercase' },
   dot: { color: '#5DA1D9', fontSize: 26, fontWeight: '700' },

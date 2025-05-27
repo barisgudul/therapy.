@@ -37,9 +37,8 @@ export default function AISummaryScreen() {
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [activeSummary, setActiveSummary] = useState<string | null>(null);
-  const [weeklyMood, setWeeklyMood] = useState<any[]>([]);
   const [moodDist, setMoodDist] = useState<{ name: string; count: number; color: string }[]>([]);
-  const [weeklyEntries, setWeeklyEntries] = useState<any[]>([]);
+  const [filteredCounts, setFilteredCounts] = useState({ mood: 0, diary: 0, session: 0, total: 0 });
   const chartWidth = Dimensions.get('window').width - 44;
 
   // Kayıtlı özetleri yükle
@@ -98,35 +97,108 @@ export default function AISummaryScreen() {
   };
 
   // Grafik verilerini güncelleyen fonksiyon
-  const refreshStats = async () => {
-    // Haftalık mood trendi
-    const moodTrend = await statisticsManager.getWeeklyMoodTrend();
-    setWeeklyMood(moodTrend);
-    // Mood dağılımı
-    const dist = await statisticsManager.getMoodDistribution();
-    // Şık, zarif ve modern pastel renk paleti (beyaz ve çok açık renk yok)
+  const refreshStats = async (daysParam?: number) => {
+    // Tüm mood, session ve diary kayıtlarını al
+    const keys = await AsyncStorage.getAllKeys();
+    const moodKeys = keys.filter(k => k.startsWith('mood-'));
+    const sessionKeys = keys.filter(k => k.startsWith('session-'));
+    let diaryEntries = [];
+    try {
+      const diaryRaw = await AsyncStorage.getItem('diary-entries');
+      if (diaryRaw) {
+        const parsed = JSON.parse(diaryRaw);
+        diaryEntries = Array.isArray(parsed) ? parsed : [];
+      }
+    } catch {}
+    // Son X gün için tarihleri bul
+    function isValidDateString(dateStr: string) {
+      // YYYY-MM-DD formatı kontrolü
+      return /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
+    }
+    function normalizeDate(dateStr: string) {
+      if (!dateStr) return '';
+      if (dateStr.length >= 10) return dateStr.slice(0, 10);
+      return dateStr;
+    }
+    // Tüm unique günleri bul (en yeni > en eski)
+    const allDatesArr = [
+      ...moodKeys.map(k => normalizeDate(k.replace('mood-', ''))),
+      ...sessionKeys.map(k => normalizeDate(k.replace('session-', ''))),
+      ...diaryEntries.map(e => normalizeDate(e.date))
+    ].filter(isValidDateString); // SADECE GEÇERLİ TARİHLER
+    const allDatesUnique = Array.from(new Set(allDatesArr)).sort((a, b) => b.localeCompare(a));
+    // Gün sayısı parametresini slider'dan canlı al
+    let days = typeof daysParam === 'number' ? daysParam : selectedDays;
+    // Slider'ın max değerini güncel unique gün sayısına göre ayarla
+    const newMaxDays = allDatesUnique.length > 0 ? allDatesUnique.length : 1;
+    if (maxDays !== newMaxDays) setMaxDays(newMaxDays);
+    if (days > newMaxDays) days = newMaxDays;
+    if (days < 1) days = 1;
+    if (selectedDays !== days) setSelectedDays(days);
+    const allDates = allDatesUnique.slice(0, days);
+    const allDatesSet = new Set(allDates); // Daha hızlı ve doğru karşılaştırma için
+    // LOG: Güncel günler ve mood dağılımı
+    console.log('PIECHART_DEBUG allDatesUnique:', allDatesUnique);
+    console.log('PIECHART_DEBUG selectedDays:', days);
+    console.log('PIECHART_DEBUG allDates:', allDates);
+    // Mood dağılımı (mood-, session- ve diary- kayıtlarından, seçili günler)
+    const moodDistObj: any = {};
+    let moodCount = 0;
+    let sessionCount = 0;
+    let diaryCount = 0;
+    for (const key of moodKeys) {
+      const date = normalizeDate(key.replace('mood-', ''));
+      if (!allDatesSet.has(date)) continue;
+      const val = await AsyncStorage.getItem(key);
+      if (val) {
+        try {
+          const obj = JSON.parse(val);
+          if (obj.mood) {
+            moodDistObj[obj.mood] = (moodDistObj[obj.mood] || 0) + 1;
+            moodCount++;
+          }
+        } catch {}
+      }
+    }
+    for (const key of sessionKeys) {
+      const date = normalizeDate(key.replace('session-', ''));
+      if (!allDatesSet.has(date)) continue;
+      const val = await AsyncStorage.getItem(key);
+      if (val) {
+        try {
+          const obj = JSON.parse(val);
+          if (obj.mood) {
+            moodDistObj[obj.mood] = (moodDistObj[obj.mood] || 0) + 1;
+            sessionCount++;
+          }
+        } catch {}
+      }
+    }
+    for (const entry of diaryEntries) {
+      const date = normalizeDate(entry.date);
+      if (!allDatesSet.has(date)) continue;
+      if (entry.mood) {
+        moodDistObj[entry.mood] = (moodDistObj[entry.mood] || 0) + 1;
+        diaryCount++;
+      }
+    }
+    setFilteredCounts({
+      mood: moodCount,
+      session: sessionCount,
+      diary: diaryCount,
+      total: moodCount + sessionCount + diaryCount
+    });
+    console.log('PIECHART_DEBUG moodDistObj:', moodDistObj);
     const palette = [
-      '#6C63FF', // pastel mor
-      '#FF6F91', // zarif pembe
-      '#FF9671', // pastel turuncu
-      '#FFC75F', // soft sarı
-      '#0089BA', // zarif mavi
-      '#845EC2', // lila
-      '#2C73D2', // koyu mavi
-      '#008E9B', // turkuaz
-      '#B39CD0', // pastel lila
-      '#F9F871', // limon sarısı (çok açık değil)
-      '#F76E6C', // zarif kırmızı
-      '#A3C9A8', // pastel yeşil
-      '#C34A36', // sıcak kiremit
-      '#F8B195', // soft şeftali
-      '#355C7D', // koyu pastel mavi
+      '#6C63FF','#FF6F91','#FF9671','#FFC75F','#0089BA','#845EC2','#2C73D2','#008E9B','#B39CD0','#F9F871','#F76E6C','#A3C9A8','#C34A36','#F8B195','#355C7D',
     ];
-    setMoodDist(Object.entries(dist).map(([name, count], i) => ({ name, count, color: palette[i % palette.length] }})));
-    // Haftalık giriş
-    const weekStats = await statisticsManager.getWeeklyStats();
-    setWeeklyEntries(weekStats);
+    setMoodDist(Object.entries(moodDistObj).map(([name, count], i) => ({ name, count: Number(count), color: palette[i % palette.length] })));
   };
+
+  // selectedDays değiştiğinde otomatik güncelle
+  useEffect(() => {
+    refreshStats(selectedDays);
+  }, [selectedDays]);
 
   // İlk yüklemede grafik verilerini getir
   useEffect(() => {
@@ -151,7 +223,28 @@ export default function AISummaryScreen() {
       .filter(k => k.startsWith('mood-'))
       .sort((a, b) => b.localeCompare(a));
 
-    // Seçili gün kadar en güncel kayıtları al (session ve mood birlikte)
+    // --- DIARY ENTRIES EKLE ---
+    // Günlük (AI destekli günlük) kayıtlarını da ekle
+    let diaryEntries: any[] = [];
+    try {
+      const diaryRaw = await AsyncStorage.getItem('diary-entries');
+      if (diaryRaw) {
+        const parsed: any[] = JSON.parse(diaryRaw);
+        // Sadece seçili gün kadar en günceli al
+        diaryEntries = parsed
+          .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+          .slice(0, selectedDays)
+          .map((entry: any) => ({
+            date: entry.date,
+            messages: entry.messages,
+            type: 'diary',
+          }));
+      }
+    } catch (e) {
+      console.error('Günlükler eklenirken hata:', e);
+    }
+
+    // Seçili gün kadar en güncel kayıtları al (session, mood ve diary birlikte)
     const allKeys = [...sessionKeys, ...moodKeys]
       .sort((a, b) => b.localeCompare(a))
       .slice(0, selectedDays);
@@ -167,6 +260,8 @@ export default function AISummaryScreen() {
         }
       }
     }
+    // Günlükleri de ekle
+    entries.push(...diaryEntries);
 
     if (entries.length === 0) {
       const newSummaries = ["Hiç veri bulunamadı.", ...summaries];
@@ -328,33 +423,49 @@ export default function AISummaryScreen() {
   const StatsHeader = (
     <View style={{ backgroundColor: '#fff', borderRadius: 18, padding: 14, marginBottom: 18, shadowColor: '#000', shadowOpacity: 0.03, shadowOffset: { width: 0, height: 2 }, shadowRadius: 8, elevation: 1, alignItems: 'center' }}>
       <Text style={{ fontWeight: '600', fontSize: 15, color: Colors.light.tint, marginBottom: 8, textAlign: 'center', letterSpacing: -0.2 }}>Mood Dağılımı</Text>
-      {moodDist.length > 0 ? (
-        <View style={{ alignItems: 'center', justifyContent: 'center', width: '100%', marginBottom: 10 }}>
-          <PieChart
-            data={moodDist.map(m => ({
-              name: m.name,
-              population: m.count,
-              color: m.color,
-              legendFontColor: '#6c7580',
-              legendFontSize: 12,
-            }))}
-            width={chartWidth}
-            height={160}
-            chartConfig={{ color: () => Colors.light.tint }}
-            accessor={'population'}
-            backgroundColor={'transparent'}
-            paddingLeft={String((chartWidth - 160) / 2)}
-            absolute
-            hasLegend={false}
-            center={[0, 0]}
-            style={{ marginBottom: 0, alignSelf: 'center' }}
-          />
-          {/* Donut efekti için ortada beyaz bir daire */}
-          <View style={{ position: 'absolute', top: 80 - 48, left: '50%', marginLeft: -48, width: 96, height: 96, borderRadius: 48, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', elevation: 2 }}>
-            <Text style={{ fontWeight: '700', fontSize: 18, color: Colors.light.tint }}>{moodDist.reduce((a, b) => a + b.count, 0)}</Text>
-            <Text style={{ fontSize: 12, color: '#6c7580' }}>Kayıt</Text>
-          </View>
-          {/* Yüzde etiketleri */}
+      <View style={{ alignItems: 'center', justifyContent: 'center', width: '100%', marginBottom: 10 }}>
+        <PieChart
+          data={
+            moodDist.length > 0
+              ? moodDist.map(m => ({
+                  name: m.name,
+                  population: m.count,
+                  color: m.color,
+                  legendFontColor: '#6c7580',
+                  legendFontSize: 12,
+                }))
+              : [{
+                  name: 'Veri Yok',
+                  population: 1,
+                  color: '#E0E0E0',
+                  legendFontColor: '#6c7580',
+                  legendFontSize: 12,
+                }]
+          }
+          width={chartWidth}
+          height={160}
+          chartConfig={{ color: () => Colors.light.tint }}
+          accessor={'population'}
+          backgroundColor={'transparent'}
+          paddingLeft={String((chartWidth - 160) / 2)}
+          absolute
+          hasLegend={false}
+          center={[0, 0]}
+          style={{ marginBottom: 0, alignSelf: 'center' }}
+        />
+        {/* Donut efekti için ortada beyaz bir daire */}
+        <View style={{ position: 'absolute', top: 80 - 48, left: '50%', marginLeft: -48, width: 96, height: 96, borderRadius: 48, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', elevation: 2 }}>
+          <Text style={{ fontWeight: '700', fontSize: 18, color: Colors.light.tint }}>
+            {moodDist.reduce((a, b) => a + b.count, 0)}
+          </Text>
+          <Text style={{ fontSize: 12, color: '#6c7580' }}>Kayıt</Text>
+        </View>
+        {/* Bilgilendirici kayıt kaynağı metni */}
+        <View style={{ marginTop: 8, alignItems: 'center' }}>
+          <TotalRecordsInfo counts={filteredCounts} />
+        </View>
+        {/* Yüzde etiketleri */}
+        {moodDist.length > 0 ? (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 12 }}>
             {moodDist.map(m => {
               const total = moodDist.reduce((a, b) => a + b.count, 0);
@@ -368,12 +479,24 @@ export default function AISummaryScreen() {
               );
             })}
           </View>
-        </View>
-      ) : (
-        <Text style={{ color: '#A0A0A0', fontSize: 13, textAlign: 'center', marginBottom: 10 }}>Yeterli veri yok</Text>
-      )}
+        ) : (
+          <Text style={{ color: '#A0A0A0', fontSize: 13, textAlign: 'center', marginTop: 12 }}>Bu gün(ler)de mood kaydı yok</Text>
+        )}
+      </View>
     </View>
   );
+
+  // --- Toplam kayıt ve kaynaklarını gösteren bilgi kutusu ---
+  function TotalRecordsInfo({ counts }: { counts: { mood: number; diary: number; session: number; total: number } }) {
+    return (
+      <Text style={{ fontSize: 12.5, color: '#6c7580', textAlign: 'center' }}>
+        Toplam <Text style={{ fontWeight: 'bold', color: Colors.light.tint }}>{counts.total}</Text> kayıt:
+        <Text style={{ color: '#6C63FF' }}> {counts.mood} günlük</Text>,
+        <Text style={{ color: '#0089BA' }}> {counts.session} seans</Text>,
+        <Text style={{ color: '#FF9671' }}> {counts.diary} günlük (AI destekli)</Text>
+      </Text>
+    );
+  }
 
   // İlk yüklemede tüm mood- kayıtlarını istatistiklere ekle (bir defaya mahsus)
   useEffect(() => {
