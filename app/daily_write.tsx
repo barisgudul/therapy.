@@ -5,14 +5,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Dimensions,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Dimensions,
+    Modal,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import * as Animatable from 'react-native-animatable';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
@@ -132,12 +132,9 @@ export default function DailyWriteScreen() {
       // Activity array'e güvenli şekilde ekle!
       const activityKey = `activity-${today}`;
       const newEntry = { type: 'daily_write', time: now };
-      await appendActivity(activityKey, newEntry);
-
-      // İstatistikleri ANINDA güncelle (AI Analiz için)
-      await statisticsManager.updateStatistics({ text: note, mood: selectedMood, date: today, source: 'daily_write' });
-      // Her gün için bir kez çalışsın diye flag'i sıfırla
-      await AsyncStorage.removeItem('mood-stats-initialized');
+      await appendActivity(activityKey, newEntry);      // İstatistikleri güncelle
+      const entry = { text: note, mood: selectedMood, date: today, source: 'daily_write' };
+      await statisticsManager.updateStatistics(entry);
 
       // Rozetleri kontrol et ve güncelle
       const streak = await calculateStreak(); // Mevcut streak'i hesapla
@@ -194,8 +191,7 @@ export default function DailyWriteScreen() {
         extraScrollHeight={100}
         contentContainerStyle={styles.content}
       >
-        <View style={styles.moodGrid}>
-          {moods.map((m) => (
+        <View style={styles.moodGrid}>          {moods.map((m) => (
             <TouchableOpacity
               key={m}
               style={[styles.moodBtn, selectedMood === m && styles.selectedMood]}

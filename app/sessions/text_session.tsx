@@ -3,18 +3,18 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated,
-  BackHandler,
-  FlatList,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
+    Animated,
+    BackHandler,
+    FlatList,
+    Keyboard,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
@@ -256,9 +256,8 @@ export default function TextSessionScreen() {
                                 },
                               ],
                             },
-                          ]}
-                        >
-                          ●
+                          ]}                        >
+                          <Text>●</Text>
                         </Animated.Text>
                       ))}
                     </View>

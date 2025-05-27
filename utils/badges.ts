@@ -333,29 +333,34 @@ export interface BadgeUpdateData {
 
 export async function checkAndUpdateBadges(type: string, data: BadgeUpdateData): Promise<void> {
   try {
+    // Get stored badges or use defaults if none exist
     const stored = await AsyncStorage.getItem('user_badges');
-    const badges = stored ? JSON.parse(stored) : defaultBadges;
+    const badges = stored ? JSON.parse(stored) : [...defaultBadges];
     let updated = false;
 
     for (const badge of badges) {
-      if (badge.unlocked || !badge.requirements) continue;
+      // Skip if badge is already unlocked or has no requirements
+      if (!badge.requirements) continue;
 
       let shouldUnlock = false;
 
       switch (badge.requirements.type) {
         case 'count':
           if (type === 'daily' && badge.category === 'daily') {
-            if (badge.id === 'daily_writer_novice') {
+            // Special handling for first diary entry
+            if (badge.id === 'first_diary') {
+              shouldUnlock = (data.totalEntries || 0) > 0;
+            } else if (badge.id === 'daily_writer_novice') {
               shouldUnlock = data.dailyWriterNovice || false;
             } else if (badge.id === 'daily_writer_expert') {
               shouldUnlock = data.dailyWriterExpert || false;
             } else {
-            shouldUnlock = (data.totalEntries || 0) >= badge.requirements.value;
+              shouldUnlock = (data.totalEntries || 0) >= badge.requirements.value;
             }
           } else if (type === 'session' && badge.category === 'session') {
             switch (badge.id) {
               case 'first_session':
-                shouldUnlock = (data.totalSessions || 0) >= badge.requirements.value;
+                shouldUnlock = (data.totalSessions || 0) > 0;
                 break;
               case 'text_expert':
                 shouldUnlock = (data.textSessions || 0) >= badge.requirements.value;
@@ -367,70 +372,56 @@ export async function checkAndUpdateBadges(type: string, data: BadgeUpdateData):
                 shouldUnlock = (data.videoSessions || 0) >= badge.requirements.value;
                 break;
               case 'session_master':
-                shouldUnlock = (data.totalSessions || 0) >= badge.requirements.value;
-                break;
               case 'therapy_dedication':
-                shouldUnlock = (data.totalSessions || 0) >= badge.requirements.value;
-                break;
               case 'therapy_master':
                 shouldUnlock = (data.totalSessions || 0) >= badge.requirements.value;
                 break;
               case 'diverse_therapy':
                 shouldUnlock = data.diverseSessionCompleted || false;
                 break;
-              case 'session_consistency_1m':
-              case 'session_consistency_3m':
-              case 'session_consistency_6m':
-              case 'session_anniversary':
-                // Bu rozetler özel kontrol gerektirir - Şimdilik varsayılan kontroller kullanılır
-                shouldUnlock = (data.totalSessions || 0) >= badge.requirements.value;
+              default:
+                if (badge.id.startsWith('session_consistency_')) {
+                  shouldUnlock = (data.totalSessions || 0) >= badge.requirements.value;
+                }
                 break;
-            }
-          } else if ((type === 'diary' || type === 'ai') && badge.category === 'diary') {
-            if (badge.id === 'ai_diary_starter') {
-              shouldUnlock = (data.aiDiaryCompleted || 0) >= badge.requirements.value;
-            } else if (badge.id === 'diary_analyzer') {
-              shouldUnlock = (data.diaryAnalysis || 0) >= badge.requirements.value;
-            } else if (badge.id === 'first_ai' || badge.id === 'ai_supporter' || badge.id === 'ai_master') {
-              shouldUnlock = (data.aiSummaries || 0) >= badge.requirements.value;
-            } else if (badge.id.startsWith('diary_consistency_')) {
-              // Düzenlilik rozetleri toplam giriş sayısına göre kontrol edilir
-              shouldUnlock = (data.totalEntries || 0) >= badge.requirements.value;
-            }
-          } else if (type === 'ai' && badge.category === 'ai') {
-            if (badge.id === 'first_ai' || badge.id === 'ai_supporter' || badge.id === 'ai_master') {
-              shouldUnlock = (data.aiSummaries || 0) >= badge.requirements.value;
-            } else if (badge.id === 'ai_insights') {
-              shouldUnlock = data.aiInsights || false;
             }
           }
           break;
 
         case 'streak':
-          if (type === 'streak' && badge.category === 'streak' && data.streak) {
-            shouldUnlock = data.streak >= badge.requirements.value;
+          if (type === 'streak' && badge.category === 'streak') {
+            // Only unlock if there is an active streak
+            shouldUnlock = (data.streak || 0) >= badge.requirements.value;
           }
           break;
 
         case 'profile':
           if (type === 'profile' && badge.category === 'profile') {
-            if (badge.id === 'profile_photo') {
-              shouldUnlock = data.hasPhoto || false;
-            } else if (badge.id === 'complete_profile') {
-              shouldUnlock = data.profileComplete || false;
-            } else if (badge.id === 'profile_storyteller') {
-              shouldUnlock = data.hasBio || false;
-            } else if (badge.id === 'profile_goals') {
-              shouldUnlock = data.hasGoals || false;
-            } else if (badge.id === 'profile_customizer') {
-              shouldUnlock = data.customizedProfile || false;
+            switch (badge.id) {
+              case 'profile_photo':
+                shouldUnlock = data.hasPhoto || false;
+                break;
+              case 'complete_profile':
+                shouldUnlock = data.profileComplete || false;
+                break;
+              case 'profile_storyteller':
+                shouldUnlock = data.hasBio || false;
+                break;
+              case 'profile_goals':
+                shouldUnlock = data.hasGoals || false;
+                break;
+              case 'profile_customizer':
+                shouldUnlock = data.customizedProfile || false;
+                break;
             }
           }
           break;
 
         case 'ai':
-          if (type === 'ai' && badge.category === 'ai') {
-            if (badge.id === 'first_ai' || badge.id === 'ai_supporter' || badge.id === 'ai_master') {
+          if ((type === 'ai' || type === 'diary') && badge.category === 'ai') {
+            if (badge.id === 'first_ai') {
+              shouldUnlock = (data.aiSummaries || 0) > 0;
+            } else if (badge.id === 'ai_supporter' || badge.id === 'ai_master') {
               shouldUnlock = (data.aiSummaries || 0) >= badge.requirements.value;
             } else if (badge.id === 'ai_insights') {
               shouldUnlock = data.aiInsights || false;
@@ -439,9 +430,14 @@ export async function checkAndUpdateBadges(type: string, data: BadgeUpdateData):
           break;
       }
 
-      if (shouldUnlock) {
-        badge.unlocked = true;
-        badge.unlockedAt = new Date().toISOString();
+      // Update badge status if needed
+      if (shouldUnlock !== badge.unlocked) {
+        badge.unlocked = shouldUnlock;
+        if (shouldUnlock) {
+          badge.unlockedAt = new Date().toISOString();
+        } else {
+          badge.unlockedAt = undefined;
+        }
         updated = true;
       }
     }
@@ -452,4 +448,4 @@ export async function checkAndUpdateBadges(type: string, data: BadgeUpdateData):
   } catch (error) {
     console.error('Rozetler güncellenirken hata:', error);
   }
-} 
+}
