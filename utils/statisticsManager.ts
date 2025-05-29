@@ -208,4 +208,29 @@ export const statisticsManager = {
   async resetProcessedMoodDates() {
     await AsyncStorage.removeItem(PROCESSED_MOOD_KEY);
   },
+
+  async resetStatistics() {
+    try {
+      // Tüm istatistikleri ve işlenmiş mood tarihlerini sil
+      await AsyncStorage.multiRemove([STATS_KEY, PROCESSED_MOOD_KEY]);
+      // Streak verisini de sıfırla
+      const { streakManager } = require('./streakManager');
+      await streakManager.resetStreak();
+      // Varsayılan istatistikleri tekrar yaz
+      const defaultStats = {
+        totalEntries: 0,
+        entriesByDay: {},
+        entriesByMonth: {},
+        averageEntryLength: 0,
+        mostActiveDay: '',
+        mostActiveMonth: '',
+        totalWords: 0,
+        moodDistribution: {},
+      };
+      await AsyncStorage.setItem(STATS_KEY, JSON.stringify(defaultStats));
+    } catch (error) {
+      console.error('İstatistikler sıfırlanırken hata:', error);
+      throw error;
+    }
+  },
 };

@@ -236,6 +236,7 @@ export default function AchievementsScreen() {
   const [showConfetti, setShowConfetti] = useState(false);
   const confettiRef = useRef(null);
   const refreshBar = useRef(Date.now());
+  const [aiMaxDays, setAiMaxDays] = useState<number>(1);
 
   useEffect(() => {
     loadData();
@@ -438,6 +439,38 @@ export default function AchievementsScreen() {
       setIsLoading(false);
     }
   }
+
+  // AI Summary ile aynı gün hesaplama mantığı
+  useEffect(() => {
+    (async () => {
+      const keys = await AsyncStorage.getAllKeys();
+      const moodKeys = keys.filter(k => k.startsWith('mood-'));
+      const sessionKeys = keys.filter(k => k.startsWith('session-'));
+      let diaryEntries: any[] = [];
+      try {
+        const diaryRaw = await AsyncStorage.getItem('diary-entries');
+        if (diaryRaw) {
+          const parsed = JSON.parse(diaryRaw);
+          diaryEntries = Array.isArray(parsed) ? parsed : [];
+        }
+      } catch {}
+      function isValidDateString(dateStr: string) {
+        return /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
+      }
+      function normalizeDate(dateStr: string) {
+        if (!dateStr) return '';
+        if (dateStr.length >= 10) return dateStr.slice(0, 10);
+        return dateStr;
+      }
+      const allDatesArr = [
+        ...moodKeys.map(k => normalizeDate(k.replace('mood-', ''))),
+        ...sessionKeys.map(k => normalizeDate(k.replace('session-', ''))),
+        ...diaryEntries.map(e => normalizeDate(e.date))
+      ].filter(isValidDateString);
+      const allDatesUnique = Array.from(new Set(allDatesArr));
+      setAiMaxDays(allDatesUnique.length > 0 ? allDatesUnique.length : 1);
+    })();
+  }, []);
 
   // Rozetleri kategorilere göre grupla
   const groupedBadges = useMemo(() => {
@@ -804,7 +837,7 @@ export default function AchievementsScreen() {
 
         {/* Stats */}
         <View style={styles.statsCard}>
-          <StatBox label="Toplam Günlük" value={totalEntries} />
+          <StatBox label="Toplam Gün" value={aiMaxDays} />
           <View style={styles.statDivider} />
           <StatBox label="En Uzun Seri" value={streakData.longestStreak} />
           <View style={styles.statDivider} />
