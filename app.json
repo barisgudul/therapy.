@@ -1,33 +1,22 @@
 {
   "expo": {
-    "name": "TherapyApp",
-    "slug": "TherapyApp",
+    "name": "Therapy_New",
+    "slug": "Therapy_New",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "therapyapp",
+    "scheme": "therapynew",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true,
-      "infoPlist": {
-        "NSMicrophoneUsageDescription": "Mikrofon erişimi gerekli, terapist ile konuşabilmeniz için.",
-        "NSCameraUsageDescription": "Ön kameranız küçük pencere modunda gösterilecektir."
-      }
+      "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
-      "permissions": [
-        "CAMERA",
-        "RECORD_AUDIO",
-        "CAMERA",
-        "RECORD_AUDIO"
-      ],
-      "package": "com.anonymous.TherapyApp"
+      "edgeToEdgeEnabled": true
     },
     "web": {
       "bundler": "metro",
@@ -44,8 +33,7 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ],
-      "expo-video"
+      ]
     ],
     "experiments": {
       "typedRoutes": true
