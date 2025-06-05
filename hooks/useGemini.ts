@@ -1,5 +1,8 @@
-import { GEMINI_API_KEY } from '@env';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from "expo-constants";
+
+const GEMINI_API_KEY = Constants.expoConfig?.extra?.GEMINI_API_KEY;
+
 
 // ---- Gemini API Ortak Fonksiyon ----
 export const sendToGemini = async (text: string): Promise<string> => {
