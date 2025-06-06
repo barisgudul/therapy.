@@ -107,46 +107,48 @@ export default function DailyWriteScreen() {
   // Kaydet butonuna basınca
   async function saveSession() {
     if (!note || !selectedMood || saving) return;
-    setSaving(true);
-
-    const now = Date.now();
-    const today = new Date(now).toISOString().split('T')[0];
-    setAiMessage('AI analiz ediyor...');
-
-    setFeedbackVisible(true);
-
+    
     try {
+      setSaving(true);
+      setAiMessage('AI analiz ediyor...');
+      setFeedbackVisible(true);
+
+      const now = Date.now();
+      const today = new Date(now).toISOString().split('T')[0];
+
+      // Önce AI yanıtını al
       const personalized = await generateDailyReflectionResponse(note, selectedMood);
+      
+      // State güncellemelerini bir arada yap
       setAiMessage(personalized);
 
-      await AsyncStorage.multiSet([
-        [
-          `mood-${today}`,
-          JSON.stringify({ mood: selectedMood, reflection: note, timestamp: now })
-        ],
-        ['todayDate', today],
-        ['todayMessage', personalized],
-        ['lastReflectionAt', String(now)],
+      // AsyncStorage işlemlerini Promise.all ile paralel yap
+      await Promise.all([
+        AsyncStorage.multiSet([
+          [`mood-${today}`, JSON.stringify({ mood: selectedMood, reflection: note, timestamp: now })],
+          ['todayDate', today],
+          ['todayMessage', personalized],
+          ['lastReflectionAt', String(now)],
+        ]),
+        // Activity array'e güvenli şekilde ekle
+        appendActivity(`activity-${today}`, { type: 'daily_write', time: now }),
+        // İstatistikleri güncelle
+        statisticsManager.updateStatistics({ text: note, mood: selectedMood, date: today, source: 'daily_write' }),
+        // Her gün için bir kez çalışsın diye flag'i sıfırla
+        AsyncStorage.removeItem('mood-stats-initialized'),
       ]);
 
-      // Activity array'e güvenli şekilde ekle!
-      const activityKey = `activity-${today}`;
-      const newEntry = { type: 'daily_write', time: now };
-      await appendActivity(activityKey, newEntry);
-
-      // İstatistikleri ANINDA güncelle (AI Analiz için)
-      await statisticsManager.updateStatistics({ text: note, mood: selectedMood, date: today, source: 'daily_write' });
-      // Her gün için bir kez çalışsın diye flag'i sıfırla
-      await AsyncStorage.removeItem('mood-stats-initialized');
-
       // Rozetleri kontrol et ve güncelle
-      const streak = await calculateStreak(); // Mevcut streak'i hesapla
-      const totalEntries = await getTotalEntries(); // Toplam günlük sayısını al
-      // Daily_write rozet kontrollerini ekle
+      const [streak, totalEntries] = await Promise.all([
+        calculateStreak(),
+        getTotalEntries()
+      ]);
+
       await checkAndUpdateBadges('daily', {
         totalEntries: totalEntries,
         streak: streak.currentStreak
       });
+
       // Daily writer rozetleri için özel kontrol
       if (totalEntries >= 3) {
         await checkAndUpdateBadges('daily', {
@@ -160,11 +162,14 @@ export default function DailyWriteScreen() {
           dailyWriterExpert: true
         });
       }
+
       setRefresh(Date.now());
     } catch (err) {
-      setAiMessage('Sunucu hatası, lütfen tekrar deneyin.');
+      console.error('Günlük kaydetme hatası:', err);
+      setAiMessage('Bir hata oluştu. Lütfen tekrar deneyin.');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   const closeFeedback = () => {

@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Therapy_New",
-    "slug": "Therapy_New",
+    "name": "TherapyApp",
+    "slug": "TherapyApp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "therapynew",
+    "scheme": "therapyapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {

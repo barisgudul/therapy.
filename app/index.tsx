@@ -60,75 +60,90 @@ export default function HomeScreen() {
 
   /* bildirim */
   useEffect(() => {
-    (async () => {
-      await Notifications.cancelAllScheduledNotificationsAsync();
-      
-      // Sabah motivasyon bildirimi
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'Günaydın!',
-          body: 'Bugün kendine iyi bakmayı unutma.',
-          data: { route: '/daily_write' },
-        },
-        trigger: { hour: 8, minute: 0, repeats: true } as any,
-      });
-      
-      // Akşam yansıma bildirimi
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'Bugün nasılsın?',
-          body: '1 cümleyle kendini ifade etmek ister misin?',
-          data: { route: '/daily_write' },
-        },
-        trigger: { hour: 20, minute: 0, repeats: true } as any,
-      });
-      
-      // 3 gün boyunca giriş yapılmazsa bildirim
-      const lastEntryDate = await AsyncStorage.getItem('lastEntryDate');
-      if (lastEntryDate) {
-        const lastEntry = new Date(lastEntryDate);
-        const now = new Date();
-        const diffTime = now.getTime() - lastEntry.getTime();
-        const diffDays = diffTime / (1000 * 60 * 60 * 24);
-        if (diffDays >= 3) {
-          // Bildirimi bugün saat 21:00'de gönder
-          const notificationTime = new Date();
-          notificationTime.setHours(21, 0, 0, 0);
-          let seconds = Math.floor((notificationTime.getTime() - now.getTime()) / 1000);
-          if (seconds < 0) seconds += 24 * 60 * 60; // Eğer saat geçtiyse ertesi gün 21:00
-          // @ts-ignore
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: 'Seni özledik!',
-              body: 'Bir süredir giriş yapmadın. Bugün günlüğünü yazmak ister misin?',
-              data: { route: '/daily_write' },
-            },
-            trigger: { seconds, repeats: false, type: undefined },
-          });
-        }
-      }
-      
-      // 7 günlük seri tamamlandığında bildirim (7 saat sonra)
-      const streak = await AsyncStorage.getItem('currentStreak');
-      if (streak && parseInt(streak) === 7) {
+    let isMounted = true;
+
+    const setupNotifications = async () => {
+      try {
+        await Notifications.cancelAllScheduledNotificationsAsync();
+        
+        // Sabah motivasyon bildirimi
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'Günaydın!',
+            body: 'Bugün kendine iyi bakmayı unutma.',
+            data: { route: '/daily_write' },
+          },
+          trigger: { hour: 8, minute: 0, repeats: true } as any,
+        });
+        
+        // Akşam yansıma bildirimi
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'Bugün nasılsın?',
+            body: '1 cümleyle kendini ifade etmek ister misin?',
+            data: { route: '/daily_write' },
+          },
+          trigger: { hour: 20, minute: 0, repeats: true } as any,
+        });
+        
+        // 3 gün boyunca giriş yapılmazsa bildirim
         const lastEntryDate = await AsyncStorage.getItem('lastEntryDate');
         if (lastEntryDate) {
           const lastEntry = new Date(lastEntryDate);
-          const notificationTime = new Date(lastEntry.getTime() + (7 * 60 * 60 * 1000)); // 7 saat sonrası
-          
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: '7/7 Tamamlandı! 🌟',
-              body: 'Harikasın! Haftalık hedefine ulaştın. AI ile haftalık performansını incelemek ister misin?',
-              data: { route: '/ai_summary' },
-            },
-            trigger: {
-              date: notificationTime,
-            } as any,
-          });
+          const now = new Date();
+          const diffTime = now.getTime() - lastEntry.getTime();
+          const diffDays = diffTime / (1000 * 60 * 60 * 24);
+          if (diffDays >= 3) {
+            const notificationTime = new Date();
+            notificationTime.setHours(21, 0, 0, 0);
+            let seconds = Math.floor((notificationTime.getTime() - now.getTime()) / 1000);
+            if (seconds < 0) seconds += 24 * 60 * 60;
+            
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: 'Seni özledik!',
+                body: 'Bir süredir giriş yapmadın. Bugün günlüğünü yazmak ister misin?',
+                data: { route: '/daily_write' },
+              },
+              trigger: { 
+                seconds,
+                repeats: false,
+                type: 'timeInterval'
+              } as any,
+            });
+          }
         }
+        
+        // 7 günlük seri tamamlandığında bildirim
+        const streak = await AsyncStorage.getItem('currentStreak');
+        if (streak && parseInt(streak) === 7) {
+          const lastEntryDate = await AsyncStorage.getItem('lastEntryDate');
+          if (lastEntryDate) {
+            const lastEntry = new Date(lastEntryDate);
+            const notificationTime = new Date(lastEntry.getTime() + (7 * 60 * 60 * 1000));
+            
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: '7/7 Tamamlandı! 🌟',
+                body: 'Harikasın! Haftalık hedefine ulaştın. AI ile haftalık performansını incelemek ister misin?',
+                data: { route: '/ai_summary' },
+              },
+              trigger: {
+                date: notificationTime,
+              } as any,
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Bildirim ayarlama hatası:', error);
       }
-    })();
+    };
+
+    setupNotifications();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const animateBg = (open: boolean) =>
@@ -136,34 +151,55 @@ export default function HomeScreen() {
 
   /* kart/modal durumu */
   const refreshState = useCallback(async () => {
-    const [storedDate, todayMsg] = await AsyncStorage.multiGet(['todayDate', 'todayMessage']);
-    storedDate[1] === todayISO() && todayMsg[1] ? setAiMessage(todayMsg[1]) : setAiMessage(null);
-    setRefreshStreak(Date.now());
+    try {
+      const [storedDate, todayMsg] = await AsyncStorage.multiGet(['todayDate', 'todayMessage']);
+      if (storedDate[1] === todayISO() && todayMsg[1]) {
+        setAiMessage(todayMsg[1]);
+      } else {
+        setAiMessage(null);
+      }
+      setRefreshStreak(Date.now());
+    } catch (error) {
+      console.error('Durum yenileme hatası:', error);
+      setAiMessage(null);
+    }
   }, []);
 
   useFocusEffect(useCallback(() => { refreshState(); }, [refreshState]));
 
   /* günlük kartı */
   const handleCardPress = async () => {
-    const storedDate = await AsyncStorage.getItem('todayDate');
-    if (storedDate === todayISO()) {
-      // zaten açılmışsa: modal
-      const msg = await AsyncStorage.getItem('todayMessage');
-      if (msg) setAiMessage(msg);
-      setModalVisible(true);
-      animateBg(true);
-    } else {
-      // ilk tıklama → tarihi hemen kaydet
-      await AsyncStorage.setItem('todayDate', todayISO());
-      setAiMessage(null);
-      router.push('/daily_write');
+    try {
+      const storedDate = await AsyncStorage.getItem('todayDate');
+      if (storedDate === todayISO()) {
+        const msg = await AsyncStorage.getItem('todayMessage');
+        if (msg) setAiMessage(msg);
+        setModalVisible(true);
+        animateBg(true);
+      } else {
+        await AsyncStorage.setItem('todayDate', todayISO());
+        setAiMessage(null);
+        router.push('/daily_write');
+      }
+    } catch (error) {
+      console.error('Kart tıklama hatası:', error);
+      Alert.alert('Hata', 'Bir sorun oluştu. Lütfen tekrar deneyin.');
     }
   };
 
   /* Terapistini Seç */
   const handleStart = async () => {
-    const stored = await AsyncStorage.getItem('userProfile');
-    stored ? router.push('/avatar') : router.push('/profile');
+    try {
+      const stored = await AsyncStorage.getItem('userProfile');
+      if (stored) {
+        router.push('/avatar');
+      } else {
+        router.push('/profile');
+      }
+    } catch (error) {
+      console.error('Başlangıç hatası:', error);
+      Alert.alert('Hata', 'Bir sorun oluştu. Lütfen tekrar deneyin.');
+    }
   };
 
   /* DEMO reset (gelistirmede) */
