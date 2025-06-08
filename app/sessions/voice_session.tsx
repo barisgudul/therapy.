@@ -1,22 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect } from 'react';
 import {
-    Animated,
-    Image,
-    PermissionsAndroid,
-    Platform,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    useColorScheme,
+  Animated,
+  Image, Platform, StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  useColorScheme
 } from 'react-native';
 import { Colors } from '../../constants/Colors';
-import { saveToSessionData } from '../../storage/sessionData'; // EKLENDİ
-import { checkAndUpdateBadges } from '../../utils/badges';
+import { generateTherapistReply } from '../../hooks/useGemini';
+import { useVoiceSession } from '../../hooks/useVoiceSession';
+import { saveToSessionData } from '../../storage/sessionData';
 import { getSessionStats } from '../../utils/helpers';
 
 const therapistImages: Record<string, any> = {
@@ -29,30 +26,50 @@ const therapistImages: Record<string, any> = {
 export default function VoiceSessionScreen() {
   const { therapistId } = useLocalSearchParams<{ therapistId: string }>();
   const router = useRouter();
-  const recording = useRef<Audio.Recording | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-
-  const [volume, setVolume] = useState(0);
-  const [micOn, setMicOn] = useState(false);
-  const [permissionGranted, setPermissionGranted] = useState(false);
-
+  const pulseAnim = React.useRef(new Animated.Value(1)).current;
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const [aiResponse, setAiResponse] = React.useState('');
+  const [messageCount, setMessageCount] = React.useState(1);
 
-  useEffect(() => {
-    requestMicrophonePermission();
-    return () => {
-      stopRecording();
-    };
-  }, []);
+  const {
+    isRecording,
+    isProcessing,
+    transcript,
+    startRecording,
+    stopRecording,
+    speakText,
+    cleanup,
+  } = useVoiceSession({
+    onTranscriptReceived: async (text) => {
+      console.log('Transcript alındı:', text);
+      if (text) {
+        const response = await generateTherapistReply(
+          therapistId || 'therapist1',
+          text,
+          '', // moodHint
+          '', // chatHistory
+          messageCount
+        );
+        setAiResponse(response);
+        speakText(response);
+        setMessageCount(prev => prev + 1);
+      }
+    },
+    onSpeechStarted: () => {
+      console.log('Konuşma başladı');
+    },
+    onSpeechEnded: () => {
+      console.log('Konuşma bitti');
+    },
+  });
 
   useEffect(() => {
     pulseAnim.setValue(1);
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: micOn ? 1.1 : 1.25,
+          toValue: isRecording ? 1.1 : 1.25,
           duration: 600,
           useNativeDriver: true,
         }),
@@ -63,93 +80,17 @@ export default function VoiceSessionScreen() {
         }),
       ])
     ).start();
-  }, [micOn]);
+  }, [isRecording]);
 
-  const requestMicrophonePermission = async () => {
-    if (Platform.OS === 'android') {
-      const granted = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-        {
-          title: 'Mikrofon İzni',
-          message: 'Uygulamanın sesinizi tanıyabilmesi için mikrofona erişimi gerekiyor.',
-          buttonPositive: 'Tamam',
-        }
-      );
-      setPermissionGranted(granted === PermissionsAndroid.RESULTS.GRANTED);
-    } else {
-      const { status } = await Audio.requestPermissionsAsync();
-      setPermissionGranted(status === 'granted');
-    }
-  };
-
-  const startRecording = async () => {
-    if (!permissionGranted || recording.current) return;
-
-    try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-
-      const rec = new Audio.Recording();
-      await rec.prepareToRecordAsync({
-        android: {
-          extension: '.m4a',
-          outputFormat: 2,
-          audioEncoder: 3,
-          sampleRate: 44100,
-          numberOfChannels: 1,
-          bitRate: 128000,
-        },
-        ios: {
-          extension: '.caf',
-          audioQuality: 2,
-          sampleRate: 44100,
-          numberOfChannels: 1,
-          bitRate: 128000,
-        },
-        isMeteringEnabled: true,
-      });
-
-      await rec.startAsync();
-      recording.current = rec;
-      setMicOn(true);
-
-      intervalRef.current = setInterval(async () => {
-        const status = await rec.getStatusAsync();
-        if (status.isRecording && status.metering) {
-          setVolume(status.metering);
-        }
-      }, 500);
-    } catch (e) {
-      console.error('Kayıt başlatılamadı:', e);
-    }
-  };
-
-  const stopRecording = async () => {
-    setMicOn(false);
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = null;
-
-    if (recording.current) {
-      try {
-        const status = await recording.current.getStatusAsync();
-        if (status.canRecord) {
-          await recording.current.stopAndUnloadAsync();
-        }
-      } catch (e) {
-        console.warn('Kayıt zaten durdurulmuş olabilir.');
-      }
-      recording.current = null;
-    }
-  };
+  useEffect(() => {
+    return () => {
+      cleanup();
+    };
+  }, [cleanup]);
 
   const handleExit = async () => {
-    await stopRecording();
-
-    // --- MERKEZİ KAYIT FONKSİYONU ---
+    await cleanup();
     await saveSession();
-
     router.back();
   };
 
@@ -157,21 +98,10 @@ export default function VoiceSessionScreen() {
     try {
       await saveToSessionData({
         sessionType: "voice",
-        newMessages: [], // İleride transcript eklersen burada kullanırsın
+        newMessages: transcript ? [{ text: transcript, sender: 'user' }] : [],
       });
 
-      // Rozetleri kontrol et ve güncelle
       const sessionStats = await getSessionStats();
-      
-      await checkAndUpdateBadges('session', {
-        textSessions: sessionStats.textSessions,
-        voiceSessions: sessionStats.voiceSessions,
-        videoSessions: sessionStats.videoSessions,
-        totalSessions: sessionStats.totalSessions,
-        diverseSessionCompleted: sessionStats.textSessions > 0 && 
-                                sessionStats.voiceSessions > 0 && 
-                                sessionStats.videoSessions > 0
-      });
     } catch (error) {
       console.error('Seans kaydedilirken hata:', error);
     }
@@ -197,40 +127,41 @@ export default function VoiceSessionScreen() {
         Sesli Terapi
       </Text>
 
-      {permissionGranted ? (
-        <>
-          <Animated.View
-            style={[
-              styles.circle,
-              {
-                transform: [{ scale: pulseAnim }],
-                backgroundColor: micOn ? Colors.light.tint : Colors.light.tint,
-              },
-            ]}
-          />
+      <Animated.View
+        style={[
+          styles.circle,
+          {
+            transform: [{ scale: pulseAnim }],
+            backgroundColor: isRecording ? Colors.light.tint : Colors.light.tint,
+          },
+        ]}
+      />
 
-          <Text style={[styles.volume, { color: isDark ? '#fff' : Colors.light.tint }]}>
-            🎙️ Mikrofon Seviyesi: {volume.toFixed(1)} dB
-          </Text>
-
-          <View style={styles.controls}>
-            <TouchableOpacity
-              onPress={micOn ? stopRecording : startRecording}
-              style={[styles.button, micOn ? styles.btnActive : styles.btnMuted]}
-            >
-              <Ionicons name={micOn ? 'mic' : 'mic-off'} size={22} color="#fff" />
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={handleExit} style={[styles.button, styles.btnMuted]}>
-              <Ionicons name="close" size={22} color="#fff" />
-            </TouchableOpacity>
-          </View>
-        </>
-      ) : (
-        <Text style={[styles.subtitle, { color: isDark ? '#ccc' : '#666' }]}>
-          Mikrofon izni verilmedi.
+      {transcript && (
+        <Text style={[styles.transcript, { color: isDark ? '#fff' : Colors.light.text }]}>
+          Sen: {transcript}
         </Text>
       )}
+
+      {aiResponse && (
+        <Text style={[styles.transcript, { color: isDark ? '#fff' : Colors.light.text, backgroundColor: '#e0e0e0' }]}>
+          AI: {aiResponse}
+        </Text>
+      )}
+
+      <View style={styles.controls}>
+        <TouchableOpacity
+          onPress={isRecording ? stopRecording : startRecording}
+          style={[styles.button, isRecording ? styles.btnActive : styles.btnMuted]}
+          disabled={isProcessing}
+        >
+          <Ionicons name={isRecording ? 'mic' : 'mic-off'} size={22} color="#fff" />
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={handleExit} style={[styles.button, styles.btnMuted]}>
+          <Ionicons name="close" size={22} color="#fff" />
+        </TouchableOpacity>
+      </View>
     </LinearGradient>
   );
 }
@@ -268,12 +199,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 24,
   },
-  subtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginTop: 24,
-  },
   circle: {
     width: 120,
     height: 120,
@@ -285,11 +210,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 18,
   },
-  volume: {
+  transcript: {
     fontSize: 16,
     textAlign: 'center',
-    marginBottom: 10,
-    color: Colors.light.tint,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 8,
   },
   controls: {
     flexDirection: 'row',
