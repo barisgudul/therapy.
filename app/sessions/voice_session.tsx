@@ -1,10 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Animated,
+  Dimensions,
   Image, Platform, StyleSheet,
   Text,
   TouchableOpacity,
@@ -17,6 +19,8 @@ import { useVoiceSession } from '../../hooks/useVoiceSession';
 import { saveToSessionData } from '../../storage/sessionData';
 import { getSessionStats } from '../../utils/helpers';
 
+const { width, height } = Dimensions.get('window');
+
 const therapistImages: Record<string, any> = {
   therapist1: require('../../assets/Terapist_1.jpg'),
   therapist2: require('../../assets/Terapist_2.jpg'),
@@ -27,17 +31,22 @@ const therapistImages: Record<string, any> = {
 export default function VoiceSessionScreen() {
   const { therapistId } = useLocalSearchParams<{ therapistId: string }>();
   const router = useRouter();
-  const pulseAnim = React.useRef(new Animated.Value(1)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const [aiResponse, setAiResponse] = React.useState('');
-  const [messageCount, setMessageCount] = React.useState(1);
+  const [aiResponse, setAiResponse] = useState('');
+  const [messageCount, setMessageCount] = useState(1);
   const [isSoundCheckComplete, setIsSoundCheckComplete] = useState(false);
   const [isSoundCheckInProgress, setIsSoundCheckInProgress] = useState(false);
+  const [sessionDuration, setSessionDuration] = useState(0);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [soundLevel, setSoundLevel] = useState(0);
+  const sessionTimer = useRef<NodeJS.Timeout>();
 
   const {
     isRecording,
-    isProcessing,
+    isProcessing: isVoiceProcessing,
     transcript,
     startRecording,
     stopRecording,
@@ -47,25 +56,110 @@ export default function VoiceSessionScreen() {
     onTranscriptReceived: async (text) => {
       console.log('Transcript alındı:', text);
       if (text) {
-        const response = await generateTherapistReply(
-          therapistId || 'therapist1',
-          text,
-          '', // moodHint
-          '', // chatHistory
-          messageCount
-        );
-        setAiResponse(response);
-        speakText(response);
-        setMessageCount(prev => prev + 1);
+        setIsProcessing(true);
+        try {
+          const response = await generateTherapistReply(
+            therapistId || 'therapist1',
+            text,
+            '', // moodHint
+            '', // chatHistory
+            messageCount
+          );
+          setAiResponse(response);
+          await speakText(response);
+          setMessageCount(prev => prev + 1);
+        } catch (error) {
+          console.error('AI yanıt hatası:', error);
+          Alert.alert('Hata', 'Üzgünüm, şu anda yanıt veremiyorum. Lütfen tekrar deneyin.');
+        } finally {
+          setIsProcessing(false);
+        }
       }
     },
     onSpeechStarted: () => {
       console.log('Konuşma başladı');
+      fadeAnim.setValue(0);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }).start();
     },
     onSpeechEnded: () => {
       console.log('Konuşma bitti');
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }).start();
+    },
+    onSoundLevelChange: (level) => {
+      setSoundLevel(level);
     },
   });
+
+  useEffect(() => {
+    // Seans süresini takip et
+    sessionTimer.current = setInterval(() => {
+      setSessionDuration(prev => prev + 1);
+    }, 1000);
+
+    return () => {
+      if (sessionTimer.current) {
+        clearInterval(sessionTimer.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    pulseAnim.setValue(1);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: isRecording ? 1.1 : 1.25,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [isRecording]);
+
+  useEffect(() => {
+    return () => {
+      cleanup();
+    };
+  }, [cleanup]);
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleExit = async () => {
+    await cleanup();
+    await saveSession();
+    router.back();
+  };
+
+  async function saveSession() {
+    try {
+      await saveToSessionData({
+        sessionType: "voice",
+        newMessages: transcript ? [{ text: transcript, sender: 'user' }] : [],
+        duration: sessionDuration,
+      });
+
+      const sessionStats = await getSessionStats();
+    } catch (error) {
+      console.error('Seans kaydedilirken hata:', error);
+    }
+  }
 
   const startSoundCheck = async () => {
     try {
@@ -99,49 +193,6 @@ export default function VoiceSessionScreen() {
       );
     }
   };
-
-  useEffect(() => {
-    pulseAnim.setValue(1);
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: isRecording ? 1.1 : 1.25,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, [isRecording]);
-
-  useEffect(() => {
-    return () => {
-      cleanup();
-    };
-  }, [cleanup]);
-
-  const handleExit = async () => {
-    await cleanup();
-    await saveSession();
-    router.back();
-  };
-
-  async function saveSession() {
-    try {
-      await saveToSessionData({
-        sessionType: "voice",
-        newMessages: transcript ? [{ text: transcript, sender: 'user' }] : [],
-      });
-
-      const sessionStats = await getSessionStats();
-    } catch (error) {
-      console.error('Seans kaydedilirken hata:', error);
-    }
-  }
 
   if (!isSoundCheckComplete) {
     return (
@@ -189,6 +240,15 @@ export default function VoiceSessionScreen() {
           source={therapistImages[therapistId] || therapistImages.therapist1} 
           style={styles.therapistImage}
         />
+        <Animated.View 
+          style={[
+            styles.overlay,
+            {
+              opacity: fadeAnim,
+              backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)'
+            }
+          ]}
+        />
       </View>
 
       <TouchableOpacity onPress={handleExit} style={styles.back}>
@@ -198,9 +258,15 @@ export default function VoiceSessionScreen() {
       <Text style={styles.logo}>
         therapy<Text style={styles.dot}>.</Text>
       </Text>
-      <Text style={[styles.title, { color: isDark ? '#fff' : Colors.light.text }]}>
-        Sesli Terapi
-      </Text>
+
+      <View style={styles.sessionInfo}>
+        <Text style={[styles.duration, { color: isDark ? '#fff' : Colors.light.text }]}>
+          {formatDuration(sessionDuration)}
+        </Text>
+        <Text style={[styles.title, { color: isDark ? '#fff' : Colors.light.text }]}>
+          Sesli Terapi
+        </Text>
+      </View>
 
       <Animated.View
         style={[
@@ -210,7 +276,21 @@ export default function VoiceSessionScreen() {
             backgroundColor: isRecording ? Colors.light.tint : Colors.light.tint,
           },
         ]}
-      />
+      >
+        {isRecording && (
+          <View style={styles.soundLevelIndicator}>
+            <View 
+              style={[
+                styles.soundLevelBar,
+                { 
+                  height: `${Math.min(100, soundLevel * 100)}%`,
+                  backgroundColor: '#fff'
+                }
+              ]} 
+            />
+          </View>
+        )}
+      </Animated.View>
 
       {transcript && (
         <Text style={[styles.transcript, { color: isDark ? '#fff' : Colors.light.text }]}>
@@ -222,6 +302,15 @@ export default function VoiceSessionScreen() {
         <Text style={[styles.transcript, { color: isDark ? '#fff' : Colors.light.text, backgroundColor: '#e0e0e0' }]}>
           AI: {aiResponse}
         </Text>
+      )}
+
+      {isProcessing && (
+        <View style={styles.processingIndicator}>
+          <ActivityIndicator size="small" color={Colors.light.tint} />
+          <Text style={[styles.processingText, { color: isDark ? '#fff' : Colors.light.text }]}>
+            Düşünüyorum...
+          </Text>
+        </View>
       )}
 
       <View style={styles.controls}>
@@ -274,6 +363,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 24,
   },
+  sessionInfo: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  duration: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
   circle: {
     width: 120,
     height: 120,
@@ -284,6 +382,21 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.25,
     shadowRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  soundLevelIndicator: {
+    width: 20,
+    height: 60,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  soundLevelBar: {
+    width: '100%',
+    position: 'absolute',
+    bottom: 0,
   },
   transcript: {
     fontSize: 16,
@@ -311,6 +424,11 @@ const styles = StyleSheet.create({
   btnMuted: {
     backgroundColor: '#9AA5B1',
   },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   therapistVideo: {
     position: 'absolute',
     top: 0,
@@ -325,16 +443,24 @@ const styles = StyleSheet.create({
     height: '100%',
     resizeMode: 'cover',
   },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  processingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 20,
+  },
+  processingText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
   description: {
     fontSize: 16,
     textAlign: 'center',
     marginHorizontal: 20,
     marginBottom: 30,
     lineHeight: 24,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
