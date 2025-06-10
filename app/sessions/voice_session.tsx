@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  Alert,
   Animated,
   Image, Platform, StyleSheet,
   Text,
@@ -31,6 +32,8 @@ export default function VoiceSessionScreen() {
   const isDark = colorScheme === 'dark';
   const [aiResponse, setAiResponse] = React.useState('');
   const [messageCount, setMessageCount] = React.useState(1);
+  const [isSoundCheckComplete, setIsSoundCheckComplete] = useState(false);
+  const [isSoundCheckInProgress, setIsSoundCheckInProgress] = useState(false);
 
   const {
     isRecording,
@@ -63,6 +66,39 @@ export default function VoiceSessionScreen() {
       console.log('Konuşma bitti');
     },
   });
+
+  const startSoundCheck = async () => {
+    try {
+      setIsSoundCheckInProgress(true);
+      await startRecording();
+      setTimeout(async () => {
+        await stopRecording();
+        setIsSoundCheckInProgress(false);
+        if (transcript) {
+          setIsSoundCheckComplete(true);
+          Alert.alert(
+            "Ses Kontrolü Başarılı",
+            "Ses sisteminiz düzgün çalışıyor. Terapiye başlayabilirsiniz.",
+            [{ text: "Tamam" }]
+          );
+        } else {
+          Alert.alert(
+            "Ses Kontrolü Başarısız",
+            "Sesiniz algılanamadı. Lütfen mikrofonunuzun çalıştığından emin olun ve tekrar deneyin.",
+            [{ text: "Tekrar Dene", onPress: startSoundCheck }]
+          );
+        }
+      }, 3000);
+    } catch (error) {
+      console.error('Ses kontrolü sırasında hata:', error);
+      setIsSoundCheckInProgress(false);
+      Alert.alert(
+        "Hata",
+        "Ses kontrolü sırasında bir hata oluştu. Lütfen tekrar deneyin.",
+        [{ text: "Tekrar Dene", onPress: startSoundCheck }]
+      );
+    }
+  };
 
   useEffect(() => {
     pulseAnim.setValue(1);
@@ -105,6 +141,45 @@ export default function VoiceSessionScreen() {
     } catch (error) {
       console.error('Seans kaydedilirken hata:', error);
     }
+  }
+
+  if (!isSoundCheckComplete) {
+    return (
+      <LinearGradient colors={isDark ? ['#000000', '#1c2e40'] : ['#F9FAFB', '#ECEFF4']} style={styles.container}>
+        <View style={styles.therapistVideo}>
+          <Image 
+            source={therapistImages[therapistId] || therapistImages.therapist1} 
+            style={styles.therapistImage}
+          />
+        </View>
+
+        <TouchableOpacity onPress={handleExit} style={styles.back}>
+          <Ionicons name="chevron-back" size={26} color={Colors.light.tint} />
+        </TouchableOpacity>
+
+        <Text style={styles.logo}>
+          therapy<Text style={styles.dot}>.</Text>
+        </Text>
+        <Text style={[styles.title, { color: isDark ? '#fff' : Colors.light.text }]}>
+          Ses Kontrolü
+        </Text>
+
+        <Text style={[styles.description, { color: isDark ? '#fff' : Colors.light.text }]}>
+          Terapiye başlamadan önce ses sisteminizi kontrol edelim.
+          Lütfen "Ses Kontrolünü Başlat" butonuna tıklayın ve 3 saniye boyunca konuşun.
+        </Text>
+
+        <TouchableOpacity
+          onPress={startSoundCheck}
+          style={[styles.button, styles.btnActive]}
+          disabled={isSoundCheckInProgress}
+        >
+          <Text style={styles.buttonText}>
+            {isSoundCheckInProgress ? "Ses Kontrolü Yapılıyor..." : "Ses Kontrolünü Başlat"}
+          </Text>
+        </TouchableOpacity>
+      </LinearGradient>
+    );
   }
 
   return (
@@ -249,5 +324,17 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
+  },
+  description: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginHorizontal: 20,
+    marginBottom: 30,
+    lineHeight: 24,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
