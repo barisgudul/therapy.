@@ -6,18 +6,21 @@ interface UseVoiceSessionProps {
   onTranscriptReceived?: (transcript: string) => void;
   onSpeechStarted?: () => void;
   onSpeechEnded?: () => void;
+  onSoundLevelChange?: (level: number) => void;
 }
 
 export const useVoiceSession = ({
   onTranscriptReceived,
   onSpeechStarted,
   onSpeechEnded,
+  onSoundLevelChange,
 }: UseVoiceSessionProps = {}) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState('');
   const recording = useRef<Audio.Recording | null>(null);
   const sound = useRef<Audio.Sound | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const startRecording = useCallback(async () => {
     try {
@@ -28,18 +31,34 @@ export const useVoiceSession = ({
       });
 
       const { recording: newRecording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
+        {
+          ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
+          isMeteringEnabled: true,
+        }
       );
       recording.current = newRecording;
       setIsRecording(true);
       onSpeechStarted?.();
+
+      intervalRef.current = setInterval(async () => {
+        if (recording.current) {
+          const status = await recording.current.getStatusAsync();
+          if (status.isRecording && status.metering) {
+            onSoundLevelChange?.(status.metering);
+          }
+        }
+      }, 100);
+
     } catch (error) {
       console.error('Kayıt başlatılamadı:', error);
     }
-  }, [onSpeechStarted]);
+  }, [onSpeechStarted, onSoundLevelChange]);
 
   const stopRecording = useCallback(async () => {
     if (!recording.current) return;
+
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = null;
 
     try {
       setIsProcessing(true);
@@ -81,6 +100,8 @@ export const useVoiceSession = ({
     if (recording.current) {
       await recording.current.stopAndUnloadAsync();
     }
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = null;
   }, []);
 
   return {

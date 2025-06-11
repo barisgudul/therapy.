@@ -6,11 +6,13 @@ export async function saveToSessionData({
   reflection,
   sessionType,
   newMessages,
+  duration,
 }: {
   mood?: string;
   reflection?: string;
   sessionType?: "text" | "voice" | "video";
   newMessages?: { sender: string; text: string }[];
+  duration?: number;
 }) {
   const today = new Date().toISOString().split('T')[0];
   const key = `session-${today}`;
@@ -25,6 +27,7 @@ export async function saveToSessionData({
       type: sessionType,
       messages: newMessages,
       time: Date.now(),
+      duration: duration,
     });
   }
   session.date = today;
