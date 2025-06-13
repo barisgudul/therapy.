@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter } from 'expo-router/';
 import {
   Dimensions,
   Image,
@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Colors } from '../constants/Colors';
 
-const avatars = [
+export const avatars = [
   {
     id: '1',
     name: 'Dr. Elif',
@@ -23,18 +23,6 @@ const avatars = [
     specialty: 'Duygusal zorluklar, özşefkat, ilişki terapisi',
     motto: '"Duygularını onurlandırmak, kendini iyileştirmenin ilk adımıdır."',
     about: 'Ben Dr. Elif. Duyguların keşfi ve iyileşme yolculuğunda sana şefkatle eşlik ederim. Seanslarda her duygunun güvenle ifade edilebildiği, yargısız bir alan yaratırım. Stres, özgüven ve ilişki sorunlarında destek olurum.'
-  },
-  {
-    id: '2',
-    name: 'Dr. Deniz',
-    imageId: 'therapist2',
-    thumbnail: require('../assets/Terapist_2.jpg'),
-    title: 'Aile Terapisti',
-    persona: 'Mantıklı ve analitik, çözüm odaklı',
-    style: 'Yapıcı, net, doğrudan; bilişsel teknikler uygular',
-    specialty: 'Aile içi iletişim, ilişki yönetimi, bilişsel davranışçı terapi',
-    motto: '"Her sorunun ardında bir çözüm ve yeni bir başlangıç vardır."',
-    about: 'Merhaba, ben Dr. Deniz. İlişkilerde denge ve anlayışı güçlendirmeye odaklanırım. Analitik yaklaşımım ile sorunun kökenini keşfeder, pratik ve uygulanabilir çözüm yolları sunarım. Özellikle aile içi iletişimde uzmanım.'
   },
   {
     id: '3',

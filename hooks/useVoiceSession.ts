@@ -1,5 +1,8 @@
+// --------------------------- useVoice.ts ---------------------------
 import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
 import { useCallback, useRef, useState } from 'react';
+import { PermissionsAndroid, Platform } from 'react-native';
 import { textToSpeech, transcribeAudio } from '../utils/gcpServices';
 
 interface UseVoiceSessionProps {
@@ -7,6 +10,7 @@ interface UseVoiceSessionProps {
   onSpeechStarted?: () => void;
   onSpeechEnded?: () => void;
   onSoundLevelChange?: (level: number) => void;
+  therapistId?: string;
 }
 
 export const useVoiceSession = ({
@@ -14,67 +18,100 @@ export const useVoiceSession = ({
   onSpeechStarted,
   onSpeechEnded,
   onSoundLevelChange,
+  therapistId = 'therapist1',
 }: UseVoiceSessionProps = {}) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [transcript, setTranscript] = useState('');
   const recording = useRef<Audio.Recording | null>(null);
   const sound = useRef<Audio.Sound | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const levelTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  /** Platforma göre izin diyaloğu */
+  const requestPermission = async () => {
+    if (Platform.OS === 'android') {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+        {
+          title: 'Mikrofon İzni',
+          message: 'Sesli terapi için mikrofona erişim gerekiyor',
+          buttonPositive: 'Tamam',
+        }
+      );
+      return granted === PermissionsAndroid.RESULTS.GRANTED;
+    } else if (Platform.OS === 'ios') {
+      const { status } = await Audio.requestPermissionsAsync();
+      return status === 'granted';
+    }
+    return true;
+  };
 
   const startRecording = useCallback(async () => {
+    if (isRecording) return;
+    const ok = await requestPermission();
+    if (!ok) return;
+
     try {
-      await Audio.requestPermissionsAsync();
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false
       });
 
-      const { recording: newRecording } = await Audio.Recording.createAsync(
-        {
-          ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
-          isMeteringEnabled: true,
-        }
+      const { recording: rec } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
-      recording.current = newRecording;
+
+      recording.current = rec;
       setIsRecording(true);
       onSpeechStarted?.();
 
-      intervalRef.current = setInterval(async () => {
-        if (recording.current) {
-          const status = await recording.current.getStatusAsync();
-          if (status.isRecording && status.metering) {
-            onSoundLevelChange?.(status.metering);
-          }
-        }
-      }, 100);
-
-    } catch (error) {
-      console.error('Kayıt başlatılamadı:', error);
+      // Ses seviyesi ölçümü
+      levelTimer.current = setInterval(async () => {
+        if (!recording.current) return;
+        const status = await recording.current.getStatusAsync();
+        if (status.isRecording && status.metering)
+          onSoundLevelChange?.(status.metering);
+      }, 120);
+    } catch (err) {
+      // console.warn('Kayıt başlatılamadı:', err);
     }
-  }, [onSpeechStarted, onSoundLevelChange]);
+  }, [isRecording, onSoundLevelChange, onSpeechStarted]);
 
   const stopRecording = useCallback(async () => {
     if (!recording.current) return;
-
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = null;
+    if (levelTimer.current) {
+      clearInterval(levelTimer.current);
+      levelTimer.current = null;
+    }
+    setIsRecording(false);
+    setIsProcessing(true);
 
     try {
-      setIsProcessing(true);
       await recording.current.stopAndUnloadAsync();
       const uri = recording.current.getURI();
+      if (uri) {
+        const info = await FileSystem.getInfoAsync(uri);
+        // info.size sadece exists:true ise vardır
+        const fileSize = info.exists ? info.size : 0;
+        const fileExt = uri.split('.').pop();
+        // console.log('[VOICE] Kayıt URI:', uri, 'Boyut:', fileSize, 'Format:', fileExt, 'exists:', info.exists);
+      }
       recording.current = null;
-      setIsRecording(false);
       onSpeechEnded?.();
 
       if (uri) {
-        const transcribedText = await transcribeAudio(uri);
-        setTranscript(transcribedText);
-        onTranscriptReceived?.(transcribedText);
+        try {
+          const text = await transcribeAudio(uri);
+          onTranscriptReceived?.(text);
+        } catch (err) {
+          // console.error('[useVoice] transcribeAudio error:', err);
+          onTranscriptReceived?.('');
+        }
       }
-    } catch (error) {
-      console.error('Kayıt durdurulamadı:', error);
+    } catch (err) {
+      // console.warn('Kayıt durdurulamadı:', err);
     } finally {
       setIsProcessing(false);
     }
@@ -82,35 +119,50 @@ export const useVoiceSession = ({
 
   const speakText = useCallback(async (text: string) => {
     try {
-      const audioUrl = await textToSpeech(text);
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: audioUrl }
+      // iOS için ses modunu ayarla
+      if (Platform.OS === 'ios') {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false
+        });
+      }
+
+      const url = await textToSpeech(text, therapistId);
+      const { sound: s } = await Audio.Sound.createAsync(
+        { uri: url },
+        { 
+          shouldPlay: true,
+          volume: 1.0,
+          isMuted: false
+        },
+        (status) => {
+          if (status.isLoaded && status.didJustFinish) {
+            s.unloadAsync();
+          }
+        }
       );
-      sound.current = newSound;
-      await sound.current.playAsync();
-    } catch (error) {
-      console.error('Ses çalınamadı:', error);
+      sound.current = s;
+    } catch (err) {
+      console.warn('Ses çalınamadı:', err);
     }
-  }, []);
+  }, [therapistId]);
 
   const cleanup = useCallback(async () => {
-    if (sound.current) {
-      await sound.current.unloadAsync();
-    }
-    if (recording.current) {
-      await recording.current.stopAndUnloadAsync();
-    }
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = null;
+    if (levelTimer.current) clearInterval(levelTimer.current);
+    levelTimer.current = null;
+    if (recording.current) await recording.current.stopAndUnloadAsync();
+    if (sound.current) await sound.current.unloadAsync();
   }, []);
 
   return {
     isRecording,
     isProcessing,
-    transcript,
     startRecording,
     stopRecording,
     speakText,
     cleanup,
   };
-}; 
+};

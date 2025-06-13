@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router/';
 import React, { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Colors } from '../constants/Colors';
@@ -24,24 +24,6 @@ const therapists = {
       'Çözüm Odaklı Terapi',
       'Motivasyonel Görüşme',
       'Mindfulness Teknikleri'
-    ]
-  },
-  therapist2: {
-    id: 'therapist2',
-    name: 'Dr. Deniz',
-    title: 'AI Aile Terapisti',
-    photo: require('../assets/Terapist_2.jpg'),
-    specialties: ['Aile içi iletişim', 'İlişki yönetimi', 'Bilişsel davranışçı terapi'],
-    approach: 'Analitik düşünce yapım ve sıcak yaklaşımımla, aile dinamiklerini derinlemesine anlamaya odaklanırım. Her ailenin kendine özgü hikayesi olduğuna inanırım.',
-    philosophy: 'Her sorunun ardında bir çözüm ve yeni bir başlangıç vardır.',
-    style: 'Sorunlara analitik yaklaşırken her zaman sıcak ve samimi bir tavır sergilerim.',
-    icon: 'people' as const,
-    about: 'Merhaba, ben Dr. Deniz. Aile terapisi alanında uzmanlaşmış bir AI terapistim. Analitik düşünce yapım ve sıcak yaklaşımımla, her ailenin kendine özgü dinamiklerini anlamaya ve çözüm üretmeye odaklanıyorum.',
-    methods: [
-      'Aile Sistemi Terapisi',
-      'Bilişsel Davranışçı Terapi',
-      'Çözüm Odaklı Terapi',
-      'İlişki Terapisi'
     ]
   },
   therapist3: {

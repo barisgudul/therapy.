@@ -3,18 +3,8 @@ import Constants from "expo-constants";
 
 const GEMINI_API_KEY = Constants.expoConfig?.extra?.GEMINI_API_KEY;
 
-if (!GEMINI_API_KEY) {
-  console.error("GEMINI_API_KEY bulunamadı!");
-  throw new Error("API anahtarı yapılandırılmamış!");
-}
-
 // ---- Gemini API Ortak Fonksiyon ----
 export const sendToGemini = async (text: string): Promise<string> => {
-  if (!text) {
-    console.error("Boş metin gönderildi!");
-    return "Geçersiz metin girdisi.";
-  }
-
   try {
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -26,22 +16,13 @@ export const sendToGemini = async (text: string): Promise<string> => {
         }),
       }
     );
-
-    if (!response.ok) {
-      throw new Error(`API yanıt vermedi: ${response.status}`);
-    }
-
     const data = await response.json();
     console.log("Gemini raw response:", data);
-    
-    if (!data?.candidates?.[0]?.content?.parts?.[0]?.text) {
-      throw new Error("API yanıtı geçersiz format içeriyor");
-    }
-
-    return data.candidates[0].content.parts[0].text;
+    const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    return reply ?? "Cevap alınamadı.";
   } catch (err) {
     console.error("Gemini API hatası:", err);
-    return "Sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.";
+    return "Sunucu hatası oluştu.";
   }
 };
 
@@ -162,6 +143,7 @@ Gerçek bir insan terapist gibi, samimi ve canlı cevap ver.
   } else if (therapistId === "coach1") {
     prompt = `
 ${historyBlock}${userBlock}
+Cevapların 1, 2 cümle olacak şekilde kısa ve öz olmalı.
 Sen, insan gibi davranan, dinamik ve ilham verici bir Yaşam Koçu olan Coach Can'sın.
 Uluslararası sertifikalı bir koçluk eğitimi almış, 10+ yıllık deneyime sahip, başarılı bir yaşam koçusun.
 Uzmanlık alanların:
